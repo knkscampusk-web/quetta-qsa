@@ -5,6 +5,7 @@
 import {
   doc, setDoc, onSnapshot, serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { mountForestWeek } from "./forest-week.js";
 
 const STEPS = [
   { step: "기반",     what: "로그인, 계정·권한, 보안 규칙, 화면 틀, 연결 설정", state: "완료" },
@@ -43,6 +44,13 @@ export async function mount(el, ctx) {
     </section>`;
 
   el.querySelector(".card-head.dark h2").textContent = `${name} 님, 반갑습니다`;
+
+  // 이번 주 교무 일정 (노동숲, 관리자만) — 환영 카드 바로 아래
+  if (ctx.profile?.role === "admin") {
+    const slot = document.createElement("div");
+    el.querySelector(".card").after(slot);
+    mountForestWeek(slot, ctx).catch((e) => console.error("[노동숲]", e));
+  }
 
   const tbody = el.querySelector("tbody");
   for (const s of STEPS) {
