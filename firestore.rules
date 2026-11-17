@@ -1,66 +1,94 @@
 rules_version = '2';
-// QSA (quetta-qsa) Firestore 보안 규칙
-// 원칙
-//  1. 'allow read, write: if true' 절대 금지
-//  2. 교무 허용목록(qsa_admins)에 있는 Google 계정만 접근
-//  3. 개인 데이터(qsa_users/{uid})는 본인만 접근
-//  4. 규칙에 적지 않은 경로는 전부 차단 → 새 모듈은 컬렉션을 아래에 하나씩 명시해서 엽니다
+// QSA Firestore 보안 규칙
+//  1. 'allow read, write: if true' 금지
+//  2. 계정(qsa_admins)에 등록된 Google 계정만 접근
+//  3. 관리자(role: "admin") = 전체 메뉴 + 계정 관리 / 일반(member) = menus 에 있는 메뉴의 데이터만
+//  4. 개인 데이터(qsa_users/{uid})는 본인만
+//  5. 규칙에 적지 않은 경로는 전부 차단
 service cloud.firestore {
   match /databases/{database}/documents {
 
     function signedIn() {
       return request.auth != null;
     }
-
     function myEmail() {
       return request.auth.token.email.lower();
     }
-
     function verified() {
       return signedIn()
         && request.auth.token.email_verified == true
         && request.auth.token.firebase.sign_in_provider == 'google.com';
     }
-
-    function isQsaAdmin() {
-      return verified()
-        && exists(/databases/$(database)/documents/qsa_admins/$(myEmail()));
+    function accountPath() {
+      return /databases/$(database)/documents/qsa_admins/$(myEmail());
+    }
+    // 등록된 계정
+    function isMember() {
+      return verified() && exists(accountPath());
+    }
+    function account() {
+      return get(accountPath()).data;
+    }
+    // 관리자
+    function isAdmin() {
+      return isMember() && account().get('role', 'member') == 'admin';
+    }
+    // 메뉴 권한: 관리자이거나 menus 에 그 메뉴 ID 가 있을 때
+    function canUse(menu) {
+      return isMember()
+        && (account().get('role', 'member') == 'admin'
+            || menu in account().get('menus', []));
+    }
+    // 계정 문서 형식 검사 (계정 관리 화면에서 쓰는 값만 허용)
+    function validAccount(d) {
+      return d.keys().hasOnly(['name', 'dept', 'role', 'menus', 'updatedAt', 'updatedBy'])
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 50
+        && d.dept is string && d.dept.size() > 0 && d.dept.size() <= 30
+        && d.role in ['admin', 'member']
+        && d.menus is list && d.menus.size() <= 50
+        && d.updatedBy == myEmail()
+        && d.updatedAt == request.time;
     }
 
-    // 허용목록: 문서 ID = 이메일(소문자)
-    // · 로그인한 사람은 "자기 이메일 문서"만 조회 가능 → 화면에서 허용 여부 안내용
-    // · 목록 조회는 허용된 교무만
-    // · 쓰기는 앱에서 불가, Firebase 콘솔에서만 관리
+    // ── 계정 (문서 ID = 이메일 소문자) ──
+    // · 본인 문서는 누구나 조회(허용 여부·권한 확인용), 목록은 관리자만
+    // · 추가·수정·삭제는 관리자만, 본인 계정은 불가(콘솔에서만) → 실수로 관리자 권한을 잃는 것 방지
     match /qsa_admins/{email} {
-      allow get: if verified() && email == myEmail();
-      allow list: if isQsaAdmin();
-      allow write: if false;
+      allow get: if verified() && (email == myEmail() || isAdmin());
+      allow list: if isAdmin();
+      allow create, update: if isAdmin()
+        && email != myEmail()
+        && email == email.lower()
+        && validAccount(request.resource.data);
+      allow delete: if isAdmin() && email != myEmail();
     }
 
-    // 본인 데이터만 접근 (설정, 마지막 접속 등)
+    // ── 본인 데이터 ──
     match /qsa_users/{uid} {
-      allow read, write: if isQsaAdmin() && request.auth.uid == uid;
+      allow read, write: if isMember() && request.auth.uid == uid;
     }
 
-    // QSA 공통 기록 (데이터 가져오기 이력 등)
+    // ── QSA 공통 기록 ──
     match /qsa_meta/{docId} {
-      allow read, write: if isQsaAdmin();
+      allow read, write: if isAdmin()
+        || (docId == 'enroll_import' && canUse('enroll'));
     }
 
-    // ── 등록현황 (quetta-2ea94 에서 복사해 온 데이터) ──
+    // ── 등록현황 (메뉴 ID: enroll) ──
     match /quettaReg_daily/{docId} {
-      allow read, write: if isQsaAdmin();
+      allow read, write: if canUse('enroll');
     }
     match /quettaReg_config/{docId} {
-      allow read, write: if isQsaAdmin();
+      allow read, write: if canUse('enroll');
     }
     match /quettaReg_rawlog/{docId} {
-      allow read, write: if isQsaAdmin();
+      allow read, write: if canUse('enroll');
     }
 
-    // ── 다음 모듈의 컬렉션도 이렇게 하나씩 추가합니다 ──
+    // ── 다음 메뉴를 이식하면 같은 방식으로 추가합니다 ──
+    // match /컬렉션/{docId} { allow read, write: if canUse('메뉴ID'); }
 
-    // 그 외 경로는 모두 차단
+    // 그 외 전부 차단
     match /{document=**} {
       allow read, write: if false;
     }
