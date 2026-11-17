@@ -197,8 +197,14 @@ export async function mount(el, ctx) {
     fs: { collection, doc, addDoc, updateDoc, deleteDoc, getDocs, getDoc, setDoc,
           query, orderBy, writeBatch, runTransaction, serverTimestamp, onSnapshot },
   });
-  await api.boot(profile);
-  await loadRosterInfo();
+  try {
+    await api.boot(profile);
+    await loadRosterInfo();
+  } catch (e) {
+    console.error(e);
+    info.textContent = `불러오지 못했습니다 (${e.code || e.message}). 보안 규칙 게시 여부와 계정의 증명서 권한을 확인하세요.`;
+    info.style.color = "var(--danger)";
+  }
   // 발급번호(certConfig/counter)가 없으면 경고 — 기존 앱 번호와 겹치는 것 방지
   try {
     const c = await getDoc(doc(db, "certConfig", "counter"));
@@ -211,7 +217,7 @@ export async function mount(el, ctx) {
     ev.target.value = "";
     if (!file) return;
     preview.hidden = false;
-    preview.textContent = "파일을 읽는 중…";
+    preview.textContent = `파일을 읽는 중… (${file.name})`;
     let parsed;
     try {
       parsed = parseDsa(await file.arrayBuffer());
