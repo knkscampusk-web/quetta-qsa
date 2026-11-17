@@ -71,7 +71,8 @@ service cloud.firestore {
     // ── QSA 공통 기록 ──
     match /qsa_meta/{docId} {
       allow read, write: if isAdmin()
-        || (docId == 'enroll_import' && canUse('enroll'));
+        || (docId == 'enroll_import' && canUse('enroll'))
+        || (docId == 'cert_import' && canUse('cert'));
     }
 
     // ── 등록현황 (메뉴 ID: enroll) ──
@@ -83,6 +84,23 @@ service cloud.firestore {
     }
     match /quettaReg_rawlog/{docId} {
       allow read, write: if canUse('enroll');
+    }
+
+    // ── 증명서 발급 (메뉴 ID: cert) ──
+    // 학생 명단: DSA 원생 마스터에서 필요한 열만 저장한 문서 1개
+    match /cert_roster/{docId} {
+      allow read: if canUse('cert');
+      allow write: if canUse('cert')
+        && docId == 'current'
+        && request.resource.data.keys().hasOnly(['students', 'updatedAt', 'updatedBy', 'fileName'])
+        && request.resource.data.students is list
+        && request.resource.data.updatedBy == myEmail();
+    }
+    match /certificates/{docId} {
+      allow read, write: if canUse('cert');
+    }
+    match /certConfig/{docId} {
+      allow read, write: if canUse('cert');
     }
 
     // ── 다음 메뉴를 이식하면 같은 방식으로 추가합니다 ──
