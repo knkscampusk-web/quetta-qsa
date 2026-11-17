@@ -30,7 +30,7 @@ export async function mount(el, ctx) {
         <div class="card-body" style="padding:0">
           <div class="table-wrap" style="border:0;border-radius:0;max-height:62vh;overflow:auto">
             <table class="table sms-table">
-              <thead><tr><th style="width:92px">날짜</th><th class="left">행사·일정</th><th>유형</th><th>대상</th><th>채널</th></tr></thead>
+              <thead><tr><th style="width:92px">날짜</th><th class="left">발송 문자</th><th>유형</th><th>대상</th><th>채널</th></tr></thead>
               <tbody data-rows></tbody>
             </table>
           </div>
@@ -45,6 +45,9 @@ export async function mount(el, ctx) {
       .sms-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: var(--s5); align-items: start; }
       .sms-table td { white-space: normal; }
       .sms-table td:first-child { white-space: nowrap; }
+      .sms-title { font-weight: 600; color: var(--ink); }
+      .sms-sub { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+      .sms-sub:empty { display: none; }
       .sms-table tbody tr { cursor: pointer; }
       .sms-table tbody tr.is-on td { background: var(--teal-soft) !important; }
       .sms-msg { white-space: pre-wrap; word-break: keep-all; line-height: 1.7; font-size: 14px; padding: var(--s4);
@@ -106,7 +109,7 @@ export async function mount(el, ctx) {
       <div data-links style="margin-top:var(--s3)"></div>
       <div data-extra style="margin-top:var(--s3)"></div>`;
     const meta = d.querySelector(".sms-meta");
-    for (const [k, v] of [["날짜", r.date], ["행사·일정", r.event], ["유형", r.type], ["학원", r.academy], ["부서", r.dept], ["대상", r.target], ["채널", r.channel], ["비고", r.note]]) {
+    for (const [k, v] of [["날짜", r.date], ["같은 날 행사", r.event], ["유형", r.type], ["학원", r.academy], ["부서", r.dept], ["대상", r.target], ["채널", r.channel], ["비고", r.note]]) {
       if (!v) continue;
       const dt = document.createElement("dt"); dt.textContent = k;
       const dd = document.createElement("dd"); dd.textContent = v;
@@ -164,8 +167,13 @@ export async function mount(el, ctx) {
     tb.replaceChildren();
     for (const r of list.slice(0, 500)) {
       const tr = document.createElement("tr");
-      tr.innerHTML = "<td></td><td class='left'></td><td></td><td></td><td></td>";
-      [r.date, r.event || (r.message || "").slice(0, 40), r.type, r.target, r.channel].forEach((v, i) => { tr.children[i].textContent = v || "-"; });
+      tr.innerHTML = "<td></td><td class='left'><div class='sms-title'></div><div class='sms-sub'></div></td><td></td><td></td><td></td>";
+      // 제목은 실제 보낸 문자(첫 줄). 같은 날 학원 행사·일정은 아래 작은 글씨로
+      const firstLine = (r.message || "").split(/\n/).map((x) => x.trim()).find(Boolean) || (r.links?.[0]?.label) || "(문자 본문 없음)";
+      tr.children[0].textContent = r.date || "-";
+      tr.querySelector(".sms-title").textContent = firstLine.length > 60 ? firstLine.slice(0, 60) + "…" : firstLine;
+      tr.querySelector(".sms-sub").textContent = r.event ? `행사·일정: ${r.event}` : "";
+      [r.type, r.target, r.channel].forEach((v, i) => { tr.children[i + 2].textContent = v || "-"; });
       tr.onclick = () => { tb.querySelectorAll("tr.is-on").forEach((x) => x.classList.remove("is-on")); tr.classList.add("is-on"); showDetail(r); };
       tb.append(tr);
     }
