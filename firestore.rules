@@ -88,13 +88,22 @@ service cloud.firestore {
 
     // ── 연결 설정 (매년 바뀌는 Apps Script 주소 등) ──
     // 쓰기는 관리자만, 읽기는 관리자 또는 그 주소를 쓰는 메뉴 권한
-    match /qsa_settings/{docId} {
-      allow read: if isAdmin() || (docId == 'links' && canUse('cert'));
+    match /qsa_settings/links {
+      allow read: if isAdmin() || canUse('cert');
       allow write: if isAdmin()
-        && docId == 'links'
         && request.resource.data.keys().hasOnly(['certRoster'])
         && request.resource.data.certRoster.url.matches('^https://script[.]google[.]com/macros/s/[A-Za-z0-9_-]+/exec$')
         && request.resource.data.certRoster.updatedBy == myEmail();
+    }
+    // 증명서 직인: 공개 주소에 두지 않고 여기에 보관. 관리자만 올리기, 증명서 권한만 읽기
+    match /qsa_settings/seal {
+      allow read: if isAdmin() || canUse('cert');
+      allow write: if isAdmin()
+        && request.resource.data.keys().hasOnly(['dataUrl', 'updatedAt', 'updatedBy'])
+        && request.resource.data.dataUrl is string
+        && request.resource.data.dataUrl[0:30].matches('^data:image/(png|jpeg|webp);base64,.*')
+        && request.resource.data.dataUrl.size() < 900000
+        && request.resource.data.updatedBy == myEmail();
     }
 
     // ── 증명서 발급 (메뉴 ID: cert) ──
