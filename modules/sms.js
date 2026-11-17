@@ -90,7 +90,7 @@ export async function mount(el, ctx) {
     fillSelect(f("academy"), "전체 학원", uniq("academy"), true);
     fillSelect(f("type"), "전체 유형", uniq("type"), true);
     fillSelect(f("target"), "전체 대상", uniq("target"), true);
-    // 처음엔 QUETTA 문자, 올해 기준으로
+    // 처음엔 QUETTA 문자. 연도·월은 비워 두어 "작년 같은 시기" 기본 보기가 되게 함
     if (!f("academy").value) { const q = [...f("academy").options].find((o) => /퀘타|QUETTA/i.test(o.value)); if (q) f("academy").value = q.value; }
   }
 
@@ -133,16 +133,33 @@ export async function mount(el, ctx) {
     }
   }
 
+  // 기본 보기: 조건(연도·월·유형·대상·검색어)을 안 고르면 "1년 전 오늘 ±15일"에 보낸 문자
+  const WINDOW_DAYS = 15;
+  function lastYearWindow() {
+    const pad2 = (n) => String(n).padStart(2, "0");
+    const iso = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    const t = new Date();
+    const base = new Date(t.getFullYear() - 1, t.getMonth(), t.getDate());   // 2/29 는 3/1 로 넘어감
+    const from = new Date(base); from.setDate(from.getDate() - WINDOW_DAYS);
+    const to = new Date(base); to.setDate(to.getDate() + WINDOW_DAYS);
+    return { from: iso(from), to: iso(to), center: iso(base) };
+  }
+
   function render() {
     const rows = cache?.rows || [];
     const y = f("year").value, m = f("month").value, ac = f("academy").value, ty = f("type").value, tg = f("target").value;
     const q = f("q").value.trim().toLowerCase();
+    const isDefault = !y && !m && !ty && !tg && !q;   // 학원 선택은 기본 보기에서도 적용
+    const win = lastYearWindow();
     const list = rows.filter((r) =>
+      (!isDefault || ((r.date || "") >= win.from && (r.date || "") <= win.to)) &&
       (!y || (r.date || "").startsWith(y)) &&
       (!m || (r.date || "").slice(5, 7) === m) &&
       (!ac || r.academy === ac) && (!ty || r.type === ty) && (!tg || r.target === tg) &&
       (!q || [r.event, r.message, r.note, r.detail, r.type, r.target].join(" ").toLowerCase().includes(q)));
-    $("[data-count]").textContent = `${list.length}건`;
+    $("[data-count]").textContent = isDefault
+      ? `작년 같은 시기 · ${win.from.slice(5).replace("-", "/")} ~ ${win.to.slice(5).replace("-", "/")} · ${list.length}건`
+      : `${list.length}건`;
     const tb = $("[data-rows]");
     tb.replaceChildren();
     for (const r of list.slice(0, 500)) {
@@ -152,7 +169,16 @@ export async function mount(el, ctx) {
       tr.onclick = () => { tb.querySelectorAll("tr.is-on").forEach((x) => x.classList.remove("is-on")); tr.classList.add("is-on"); showDetail(r); };
       tb.append(tr);
     }
-    if (!list.length) tb.innerHTML = `<tr><td colspan="5" class="muted">조건에 맞는 문자가 없습니다.</td></tr>`;
+    if (!list.length) tb.innerHTML = isDefault
+      ? `<tr><td colspan="5" class="muted">작년 이맘때(${win.from} ~ ${win.to}) 보낸 문자가 없습니다. 연도·월을 골라 찾아보세요.</td></tr>`
+      : `<tr><td colspan="5" class="muted">조건에 맞는 문자가 없습니다.</td></tr>`;
+    // 기본 보기에서는 1년 전 오늘과 가장 가까운 문자를 바로 펼쳐 보여줌
+    if (isDefault && list.length) {
+      const near = list.reduce((a, b) => Math.abs(Date.parse(b.date) - Date.parse(win.center)) < Math.abs(Date.parse(a.date) - Date.parse(win.center)) ? b : a);
+      const i = list.indexOf(near);
+      const tr = tb.children[i];
+      if (tr) { tr.classList.add("is-on"); showDetail(near); }
+    }
     if (list.length > 500) status(`${list.length}건 중 500건만 표시합니다. 조건을 좁혀 주세요.`);
   }
 
