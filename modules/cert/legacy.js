@@ -1,0 +1,3756 @@
+// 증명서 발급(전입신고 관리 앱의 증명서 부분) 이식본 — 자동 변환으로 만든 파일입니다.
+// 원본: wrtpny5-beep/quetta-transfer/index.html
+// 발급·이력·설정 로직은 원본 그대로이며, 바뀐 점은 아래뿐입니다.
+//  · 로그인: 원본의 직원·담임 로그인 대신 QSA 로그인 (원본 로그인 화면·감시 미실행)
+//  · 데이터: 원본 DB(quetta-2ea94)를 QSA 연결 계층이 넘겨준 db 로 사용
+//  · 읽기: 증명서에 필요한 반·학생·발급 이력만 (전입 기록·일정·사용자·수능 기록은 읽지 않음)
+//  · document.* → 섀도 루트($R). PDF 생성용 컨테이너만 문서 쪽에 둠(html2canvas 호환)
+// 직접 고치기보다 원본을 고친 뒤 다시 변환하는 것을 권장합니다.
+/* eslint-disable */
+
+export const CSS = "\n:host {\n  --g900:#0D6B64; --g700:#1A9E95; --g500:#2BADA0; --g100:#C8EDEA; --g50:#EAF7F6;\n  --gold:#D4BE52; --gold2:#B8A030; --gold-bg:#FAF6D0;\n  --cream:#F7FAFA; --warm1:#EDF5F4; --warm2:#D5E8E7;\n  --t1:#1C2E2D; --t2:#4A7570; --t3:#8AADAA; --white:#FFFFFF;\n  --red:#DC2626; --red-bg:#FEE2E2;\n  --sh:0 1px 3px rgba(0,0,0,.07); --sh2:0 4px 16px rgba(0,0,0,.10);\n  --r:10px; --r2:14px;\n}\n*{box-sizing:border-box;margin:0;padding:0}\n:host{font-family:'Noto Sans KR',sans-serif;background:var(--cream);color:var(--t1);min-height:100vh;font-size:16px;line-height:1.5}\n\n/* ── LOGIN ── */\n#loginScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(150deg,#0D6B64 0%,#2BADA0 100%);padding:20px}\n.login-card{background:var(--white);border-radius:var(--r2);padding:48px 40px;width:100%;max-width:380px;box-shadow:var(--sh2)}\n.login-brand{text-align:center;margin-bottom:32px}\n.login-brand .lb-label{font-size:12px;letter-spacing:3px;color:var(--t3);text-transform:uppercase}\n.login-brand .lb-name{font-family:'Cabin',sans-serif;font-weight:700;font-size:32px;color:var(--g900);letter-spacing:0;margin:4px 0 2px}\n.login-brand .lb-sub{font-size:14px;color:var(--t3)}\n.divider{height:1px;background:var(--warm2);margin:0 0 28px}\n\n/* ── FORMS ── */\n.fg{margin-bottom:14px}\n.fg label{display:block;font-size:13px;font-weight:600;color:var(--t2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:5px}\n.fg input,.fg select,.fg textarea{width:100%;padding:10px 13px;border:1.5px solid var(--warm2);border-radius:7px;font-family:'Noto Sans KR',sans-serif;font-size:16px;color:var(--t1);background:var(--white);outline:none;transition:border-color .15s}\n.fg input:focus,.fg select:focus,.fg textarea:focus{border-color:var(--g700)}\n.fg textarea{resize:vertical}\n\n/* ── BUTTONS ── */\n.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:9px 18px;border:none;border-radius:7px;font-family:'Noto Sans KR',sans-serif;font-size:15px;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap}\n.btn-primary{background:var(--g900);color:#fff;width:100%;padding:12px;font-size:16px;font-weight:600}\n.btn-primary:hover{background:var(--g700)}\n.btn-gold{background:var(--gold);color:#fff}\n.btn-gold:hover{background:var(--gold2)}\n.btn-ghost{background:var(--warm1);color:var(--t1)}\n.btn-ghost:hover{background:var(--warm2)}\n.btn-red{background:var(--red-bg);color:var(--red)}\n.btn-red:hover{background:#FECACA}\n.btn-sm{padding:6px 11px;font-size:14px}\n\n.login-err{color:var(--red);font-size:14px;text-align:center;margin-top:10px;display:none}\n\n/* ── PENDING ── */\n#pendingScreen{display:none;min-height:100vh;flex-direction:column;align-items:center;justify-content:center;padding:20px;text-align:center}\n.pending-card{background:var(--white);border-radius:var(--r2);padding:48px 40px;max-width:460px;box-shadow:var(--sh2)}\n.pending-card h2{font-size:20px;color:var(--g900);margin:12px 0 8px}\n.pending-card p{font-size:15px;color:var(--t2);line-height:1.7}\n.uid-box{font-family:monospace;font-size:14px;background:var(--warm1);padding:6px 10px;border-radius:5px;margin:12px 0 20px;word-break:break-all;color:var(--t2)}\n\n/* ── LAYOUT ── */\n#appScreen{display:none}\n.layout{display:flex;min-height:100vh}\n\n/* Sidebar */\n.sidebar{width:220px;background:var(--g900);color:#fff;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;flex-shrink:0;overflow-y:auto}\n.sb-head{padding:22px 20px 16px;border-bottom:1px solid rgba(255,255,255,.1)}\n.sb-label{font-size:13px;letter-spacing:2.5px;text-transform:uppercase;opacity:.7;margin-bottom:2px}\n.sb-name{font-family:'Cabin',sans-serif;font-weight:700;font-size:20px;color:var(--gold);letter-spacing:0;filter:brightness(1.3)}\n.sb-sub{font-size:14px;opacity:.6;margin-top:1px}\n.sb-nav{flex:1;padding:10px 8px}\n.nav-sec{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;opacity:.55;padding:10px 12px 4px}\n.nav-item{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:7px;cursor:pointer;font-size:15px;opacity:.85;transition:all .15s;margin-bottom:1px}\n.nav-item:hover{background:rgba(255,255,255,.08);opacity:.9}\n.nav-item.active{background:rgba(201,168,76,.18);opacity:1;color:var(--gold)}\n.sb-foot{padding:12px 8px;border-top:1px solid rgba(255,255,255,.1)}\n.sb-user{padding:6px 12px 8px}\n.sb-user-name{font-size:15px;font-weight:600}\n.sb-user-role{font-size:13px;opacity:.65}\n.btn-logout{width:100%;background:rgba(255,255,255,.08);color:rgba(255,255,255,.65);border:none;padding:8px;border-radius:7px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;font-size:14px;transition:all .15s}\n.btn-logout:hover{background:rgba(255,255,255,.15);color:#fff}\n\n/* Main */\n.main{flex:1;padding:28px 30px;overflow-y:auto;min-width:0}\n.pg-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:22px;gap:12px}\n.pg-title{font-size:22px;font-weight:700;color:var(--g900)}\n.pg-sub{font-size:14px;color:var(--t2);margin-top:2px}\n.pg-actions{display:flex;gap:8px;flex-shrink:0}\n\n/* Card */\n.card{background:var(--white);border-radius:var(--r);border:1px solid var(--warm2);box-shadow:var(--sh)}\n.card-head{padding:14px 16px 12px;border-bottom:1px solid var(--warm1);display:flex;align-items:center;justify-content:space-between}\n.card-head-title{font-size:16px;font-weight:600}\n.card-body{padding:16px}\n\n/* Summary grid */\n.sum-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-bottom:22px}\n.sum-card{background:var(--white);border-radius:var(--r);border:1px solid var(--warm2);box-shadow:var(--sh);overflow:hidden;cursor:pointer;transition:box-shadow .15s}\n.sum-card:hover{box-shadow:var(--sh2)}\n.sum-card-head{background:var(--g900);color:#fff;padding:11px 14px;display:flex;align-items:center;justify-content:space-between}\n.sum-cls{font-size:17px;font-weight:700;letter-spacing:.5px}\n.sum-teacher{font-size:13px;opacity:.5}\n.sum-body{padding:12px 14px}\n.sum-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}\n.sum-row:last-child{margin-bottom:0}\n.sum-label{font-size:14px;color:var(--t2)}\n.sum-bar-wrap{flex:1;margin:0 10px;height:5px;background:var(--warm2);border-radius:3px;overflow:hidden}\n.sum-bar{height:100%;background:var(--g500);border-radius:3px;transition:width .3s}\n.sum-count{font-size:14px;font-weight:600;color:var(--g700);white-space:nowrap}\n\n/* Search/filter bar */\n.tool-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center}\n.search-input{padding:8px 12px;border:1.5px solid var(--warm2);border-radius:7px;font-family:'Noto Sans KR',sans-serif;font-size:15px;outline:none;width:200px;transition:border-color .15s}\n.search-input:focus{border-color:var(--g700)}\n.chip{padding:5px 13px;border-radius:20px;border:1.5px solid var(--warm2);background:var(--white);font-size:14px;cursor:pointer;transition:all .15s;font-family:'Noto Sans KR',sans-serif}\n.chip:hover{border-color:var(--g700);color:var(--g700)}\n.chip.active{background:var(--g900);color:#fff;border-color:var(--g900)}\n\n/* Table */\n.tbl-wrap{overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 220px)}\n.tbl{width:100%;border-collapse:collapse;min-width:600px}\n.tbl th{text-align:left;padding:9px 12px;font-size:12px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--t3);background:var(--cream);border-bottom:1px solid var(--warm2);white-space:nowrap;position:sticky;top:0;z-index:1}\n.tbl th.center,.tbl td.center{text-align:center}\n.sort-ind{display:inline-block;margin-left:4px;font-size:11px;color:var(--brand,#00B2BE);font-weight:700;opacity:.4;transition:opacity .15s}\n.sort-ind.active{opacity:1;color:var(--brand,#00B2BE)}\nth:hover .sort-ind{opacity:1}\n.tbl td{padding:10px 12px;border-bottom:1px solid var(--warm1);font-size:15px;vertical-align:middle}\n.tbl tr:last-child td{border-bottom:none}\n.tbl tbody tr:nth-child(odd) td{background:#fff}\n.tbl tbody tr:nth-child(even) td{background:var(--warm1)}\n.tbl tr:hover td{background:var(--g50)}\n\n/* Checkbox doc */\n.doc-cb{width:18px;height:18px;cursor:pointer;accent-color:var(--g700)}\n.doc-wrap{display:flex;align-items:center;justify-content:center;gap:4px}\n\n/* Badges */\n.bdg{display:inline-flex;align-items:center;padding:2px 8px;border-radius:12px;font-size:13px;font-weight:500}\n.bdg-g{background:var(--g100);color:var(--g700)}\n.bdg-gold{background:var(--gold-bg);color:var(--gold2)}\n.bdg-gray{background:var(--warm1);color:var(--t2)}\n.bdg-red{background:var(--red-bg);color:var(--red)}\n\n/* Round select inline */\n.round-sel{padding:4px 7px;border:1.5px solid var(--warm2);border-radius:6px;font-family:'Noto Sans KR',sans-serif;font-size:14px;outline:none;background:var(--white);cursor:pointer}\n\n/* Upload zone */\n.upload-zone{display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px dashed var(--warm2);border-radius:var(--r);padding:40px 20px;cursor:pointer;transition:all .15s;text-align:center}\n.upload-zone:hover{border-color:var(--g700);background:var(--g50)}\n.uz-icon{font-size:38px;margin-bottom:10px}\n.uz-text{font-size:16px;font-weight:600;color:var(--t1);margin-bottom:4px}\n.uz-sub{font-size:14px;color:var(--t3)}\n\n/* Tri-state doc toggle */\n.doc-toggle{width:26px;height:26px;border-radius:6px;border:2px solid var(--warm2);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:14px;transition:all .15s;background:var(--white)}\n.doc-toggle:hover{border-color:var(--g500)}\n.doc-toggle.s1{background:#C8EDEA;border-color:var(--g500);color:var(--g700)} /* 담임 확인 - 옅은 초록 */\n.doc-toggle.s2{background:var(--g500);border-color:var(--g700);color:#fff}    /* 완료 - 진한 초록 */\n.doc-toggle[disabled]{opacity:.35;cursor:not-allowed}\n\n/* Info box */\n.info-box{background:var(--gold-bg);border-left:3px solid var(--gold);border-radius:7px;padding:11px 14px;font-size:14px;color:var(--t2);line-height:1.7;margin-bottom:16px}\n\n/* Schedule */\n.sch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}\n.sch-card{background:var(--white);border-radius:var(--r);border:1px solid var(--warm2);box-shadow:var(--sh);overflow:hidden}\n.sch-head{background:var(--g900);color:#fff;padding:11px 14px;display:flex;justify-content:space-between;align-items:center}\n.sch-cls{font-size:17px;font-weight:700}\n.sch-rounds{display:flex;flex-direction:column;gap:6px;padding:12px 14px}\n.sch-round-row{display:flex;align-items:center;justify-content:space-between;padding:9px 11px;background:var(--cream);border-radius:7px}\n.sch-round-label{font-size:14px;font-weight:700;color:var(--g900)}\n.sch-round-date{font-size:15px;color:var(--t1)}\n.sch-round-actions{display:flex;gap:5px}\n.sch-empty{padding:14px;font-size:14px;color:var(--t3)}\n\n/* Modal */\n.overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px}\n.overlay.open{display:flex}\n.modal{background:var(--white);border-radius:var(--r2);width:100%;max-width:460px;max-height:90vh;overflow-y:auto;box-shadow:var(--sh2)}\n.modal-head{padding:16px 20px 12px;border-bottom:1px solid var(--warm1);display:flex;align-items:center;justify-content:space-between}\n.modal-head-title{font-size:17px;font-weight:700}\n.modal-x{background:none;border:none;font-size:22px;cursor:pointer;color:var(--t3);line-height:1;padding:0}\n.modal-body{padding:20px}\n.modal-foot{padding:12px 20px;border-top:1px solid var(--warm1);display:flex;gap:8px;justify-content:flex-end}\n\n/* Toast */\n.toast-wrap{position:fixed;bottom:22px;right:22px;z-index:2000}\n.toast{background:var(--g900);color:#fff;padding:11px 16px;border-radius:7px;font-size:15px;margin-top:6px;box-shadow:var(--sh2);animation:slideUp .2s ease}\n.toast.err{background:var(--red)}\n@keyframes slideUp{from{transform:translateY(10px);opacity:0}to{transform:none;opacity:1}}\n\n.view{display:none}\n.view.active{display:block}\n\n.empty{text-align:center;padding:48px 20px;color:var(--t3)}\n.empty .ei{font-size:38px;margin-bottom:10px}\n.empty p{font-size:15px}\n.tbl-actions{display:flex;gap:6px;justify-content:flex-end}\n\n.mobile-menu-btn{display:none;position:fixed;top:12px;left:12px;z-index:99;width:42px;height:42px;background:var(--brand-teal,#00B2BE);color:#fff;border:none;border-radius:8px;font-size:20px;box-shadow:0 2px 8px rgba(0,0,0,.15);cursor:pointer;align-items:center;justify-content:center}\n.mobile-menu-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:98}\n.mobile-menu-overlay.open{display:block}\n\n@media(max-width:700px){\n  .sidebar{\n    display:flex !important;\n    position:fixed !important;\n    top:0;left:0;z-index:99;\n    height:100vh;\n    transform:translateX(-100%);\n    transition:transform .25s ease;\n    box-shadow:2px 0 16px rgba(0,0,0,.2);\n  }\n  .sidebar.open{transform:translateX(0)}\n  .mobile-menu-btn{display:flex}\n  .main{padding:12px;padding-top:64px}\n  .pg-head{flex-direction:column;align-items:flex-start;gap:10px}\n  .pg-actions{width:100%;flex-wrap:wrap}\n  .pg-actions .btn{flex:1;min-width:120px;font-size:13px}\n  .pg-title{font-size:18px}\n  .pg-sub{font-size:12px}\n  .tool-bar{flex-wrap:wrap;gap:8px}\n  .search-input{flex:1;min-width:180px;font-size:14px}\n  .card{padding:12px}\n  .tbl{font-size:12px}\n  .tbl th,.tbl td{padding:6px 8px}\n  .tbl-wrap{max-height:calc(100vh - 200px)}\n  .btn{padding:8px 12px;font-size:13px}\n  .btn-sm{padding:5px 8px;font-size:11px}\n  .modal{width:95vw;max-width:none;max-height:90vh}\n  .doc-toggle{width:28px;height:28px;font-size:11px}\n}\n\n/* 좌측 3컬럼 (학번/성명/성별) 스티키 고정 */\n.tbl.sticky-3 th:nth-child(1),.tbl.sticky-3 td:nth-child(1){position:sticky;left:0;background:var(--white);z-index:2;min-width:72px}\n.tbl.sticky-3 th:nth-child(1){z-index:3;background:var(--cream)}\n.tbl.sticky-3 th:nth-child(2),.tbl.sticky-3 td:nth-child(2){position:sticky;left:72px;background:var(--white);z-index:2;min-width:96px}\n.tbl.sticky-3 th:nth-child(2){z-index:3;background:var(--cream)}\n.tbl.sticky-3 th:nth-child(3),.tbl.sticky-3 td:nth-child(3){position:sticky;left:168px;background:var(--white);z-index:2;min-width:52px;border-right:2px solid var(--warm2)}\n.tbl.sticky-3 th:nth-child(3){z-index:3;background:var(--cream)}\n/* 반 열이 있는 스티키-4 (관리자 뷰) */\n.tbl.sticky-4 th:nth-child(1),.tbl.sticky-4 td:nth-child(1){position:sticky;left:0;background:var(--white);z-index:2;min-width:72px}\n.tbl.sticky-4 th:nth-child(1){z-index:3;background:var(--cream)}\n.tbl.sticky-4 th:nth-child(2),.tbl.sticky-4 td:nth-child(2){position:sticky;left:72px;background:var(--white);z-index:2;min-width:96px}\n.tbl.sticky-4 th:nth-child(2){z-index:3;background:var(--cream)}\n.tbl.sticky-4 th:nth-child(3),.tbl.sticky-4 td:nth-child(3){position:sticky;left:168px;background:var(--white);z-index:2;min-width:52px}\n.tbl.sticky-4 th:nth-child(3){z-index:3;background:var(--cream)}\n.tbl.sticky-4 th:nth-child(4),.tbl.sticky-4 td:nth-child(4){position:sticky;left:220px;background:var(--white);z-index:2;min-width:64px;border-right:2px solid var(--warm2)}\n.tbl.sticky-4 th:nth-child(4){z-index:3;background:var(--cream)}\n\n/* 인쇄 스타일 */\n@media print{\n  @page{size:A4 portrait;margin:0.6cm}\n  html,body{background:#fff !important;-webkit-print-color-adjust:exact;print-color-adjust:exact;min-height:0 !important;height:auto !important;color:#000 !important}\n  .layout{min-height:0 !important;display:block !important}\n  .sidebar,.tool-bar,.pg-actions,.overlay,.modal,.mobile-menu-btn,.mobile-menu-overlay{display:none !important}\n  button,.btn{display:none !important}\n  .main{padding:0 !important;max-width:none !important;margin:0 !important;overflow:visible !important;flex:none !important;min-height:0 !important;height:auto !important}\n  .view{display:none}\n  .view.active{display:block !important;padding:0 !important;margin:0 !important}\n  /* 헤더 컴팩트 - 한줄로 */\n  .pg-head{flex-direction:row !important;align-items:baseline !important;gap:10px !important;margin:0 0 8px 0 !important;padding:0 0 4px 0 !important;border-bottom:2px solid #333 !important;page-break-after:avoid !important;page-break-inside:avoid !important}\n  .pg-title{font-size:13pt !important;margin:0 !important;padding:0 !important;line-height:1.2 !important;color:#000 !important;font-weight:700 !important}\n  .pg-sub{font-size:8.5pt !important;color:#666 !important;margin:0 !important}\n  /* 카드 - 테두리·그림자 완전 제거 */\n  .card{box-shadow:none !important;border:none !important;margin:0 !important;padding:0 !important;page-break-inside:auto !important;page-break-before:avoid !important;overflow:visible !important;background:transparent !important}\n  .card-head{padding:4px 6px !important;font-size:9pt !important;border-bottom:1px solid #999 !important}\n  .card-body{padding:0 !important}\n  /* 테이블 - 깔끔한 라인 */\n  .tbl-wrap{overflow:visible !important;max-height:none !important;padding:0 !important;margin:0 !important;border:1px solid #333 !important}\n  .tbl{font-size:7pt !important;width:100% !important;table-layout:auto !important;border-collapse:collapse !important}\n  .tbl th{background:#e8e8e8 !important;color:#000 !important;position:static !important;padding:3px 4px !important;font-size:6.5pt !important;font-weight:700 !important;text-transform:none !important;letter-spacing:0 !important;border:1px solid #999 !important;white-space:nowrap !important;text-align:center !important}\n  /* 기본 td: 줄바꿈 방지 (짧은 값들 보호) */\n  .tbl td{padding:2px 4px !important;border:1px solid #ddd !important;vertical-align:middle !important;line-height:1.25 !important;white-space:nowrap !important}\n  /* 차량과 비고만 줄바꿈 허용 */\n  #snTable td:nth-child(11),#snTable td:nth-child(13),\n  #mySnTable td:nth-child(10),#mySnTable td:nth-child(12){white-space:normal !important;word-break:break-all !important}\n  .tbl tr{page-break-inside:avoid !important}\n  .tbl tbody tr:nth-child(even) td{background:#f7f7f7 !important}\n  .tbl thead{display:table-header-group !important}\n  /* 스티키 컬럼 인쇄 시 해제 */\n  .tbl.sticky-3 th,.tbl.sticky-3 td,.tbl.sticky-4 th,.tbl.sticky-4 td{position:static !important;left:auto !important;background:transparent !important;border-right:1px solid #ddd !important;min-width:0 !important;max-width:none !important}\n  .tbl.sticky-3 th,.tbl.sticky-4 th{background:#e8e8e8 !important}\n  .tbl tbody tr:nth-child(even) td{background:#f7f7f7 !important}\n  /* 문서 토글 - 체크된 것만 아이콘, 빈 셀은 완전 비움 */\n  .doc-toggle{background:transparent !important;border:none !important;color:#000 !important;width:auto !important;height:auto !important;min-width:0 !important;padding:0 !important;font-size:7.5pt !important;font-weight:700 !important;line-height:1 !important;display:inline-block !important;cursor:default !important}\n  .doc-toggle:empty{visibility:hidden}\n  .doc-toggle.s2{color:#000 !important}\n  /* Input placeholder 완전 숨김 */\n  input::placeholder,textarea::placeholder{color:transparent !important;opacity:0 !important}\n  /* 비고 input, 차량 select - 텍스트만 표시 */\n  .notes-input,select,input[type=\"text\"]{border:none !important;background:transparent !important;padding:0 !important;font-size:6.5pt !important;-webkit-appearance:none !important;appearance:none !important;width:auto !important;min-width:0 !important;max-width:100% !important;color:#000 !important;box-shadow:none !important}\n  select{white-space:nowrap;text-overflow:ellipsis;overflow:hidden;font-size:6pt !important}\n  /* 뱃지 - 심플하게 */\n  .bdg{border:none !important;background:transparent !important;color:#000 !important;padding:0 !important;font-size:6.5pt !important;font-weight:600 !important;display:inline-block !important}\n  .bdg-gold{color:#000 !important;font-weight:700 !important}\n  .bdg-red{color:#c00 !important;font-weight:700 !important}\n  .sort-ind{display:none !important}\n  .chip{display:none !important}\n  /* 반 chip (스케줄 뷰) 인라인 표시 */\n  .tbl .bdg{margin-right:2px !important}\n}\n";
+
+export const MARKUP = "\n\n<!-- LOGIN -->\n<div id=\"loginScreen\">\n  <div class=\"login-card\">\n    <div class=\"login-brand\">\n      <div class=\"lb-label\">강남대성기숙</div>\n      <div class=\"lb-name\">QUETTA</div>\n      <div class=\"lb-sub\">전입신고 관리 시스템</div>\n    </div>\n    <div class=\"divider\"></div>\n    <!-- 탭 -->\n    <div style=\"display:grid;grid-template-columns:1fr 1fr;gap:0;margin-bottom:22px;border:1.5px solid var(--warm2);border-radius:8px;overflow:hidden\">\n      <button id=\"tabStaff\" onclick=\"switchLoginTab('staff')\"\n        style=\"padding:9px;border:none;font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:600;cursor:pointer;background:var(--g900);color:#fff;transition:all .15s\">\n         직원 로그인\n      </button>\n      <button id=\"tabTeacher\" onclick=\"switchLoginTab('teacher')\"\n        style=\"padding:9px;border:none;font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:500;cursor:pointer;background:var(--warm1);color:var(--t2);transition:all .15s\">\n         담임 입장\n      </button>\n    </div>\n\n    <!-- 직원 폼 -->\n    <div id=\"formStaff\">\n      <div class=\"fg\"><label>이메일</label><input type=\"email\" id=\"loginEmail\" placeholder=\"이메일\"></div>\n      <div class=\"fg\"><label>비밀번호</label><input type=\"password\" id=\"loginPw\" placeholder=\"비밀번호\" onkeydown=\"if(event.key==='Enter')doLogin()\"></div>\n      <button class=\"btn btn-primary\" onclick=\"doLogin()\">로그인</button>\n    </div>\n\n    <!-- 담임 폼 -->\n    <div id=\"formTeacher\" style=\"display:none\">\n      <div class=\"fg\" id=\"tcClsGroup\">\n        <label>반 선택</label>\n        <select id=\"tcCls\"><option value=\"\">반을 선택하세요</option></select>\n      </div>\n      <div class=\"fg\"><label>이름</label>\n        <input type=\"text\" id=\"tcName\" placeholder=\"본인 이름 입력\">\n      </div>\n      <div class=\"fg\"><label>비밀번호</label>\n        <input type=\"password\" id=\"tcPw\" placeholder=\"담당 직원에게 문의\" onkeydown=\"if(event.key==='Enter')doTeacherLogin()\">\n      </div>\n      <button class=\"btn btn-primary\" onclick=\"doTeacherLogin()\">입장</button>\n    </div>\n\n    <div class=\"login-err\" id=\"loginErr\"></div>\n  </div>\n</div>\n\n<!-- PENDING -->\n<div id=\"pendingScreen\">\n  <div class=\"pending-card\">\n    <div style=\"font-size:40px\">⏳</div>\n    <h2>계정 활성화 대기 중</h2>\n    <p>담당 직원에게 계정 활성화를 요청해 주세요.</p>\n    <div class=\"uid-box\" id=\"pendingUid\"></div>\n    <button class=\"btn btn-ghost\" onclick=\"doLogout()\">로그아웃</button>\n  </div>\n</div>\n\n<!-- APP -->\n<div id=\"appScreen\">\n  <div class=\"layout\">\n    <aside class=\"sidebar\">\n      <div class=\"sb-head\">\n        <div class=\"sb-label\">강남대성기숙</div>\n        <div class=\"sb-name\">QUETTA</div>\n        <div class=\"sb-sub\">전입신고 관리</div>\n      </div>\n      <nav class=\"sb-nav\" id=\"sbNav\"></nav>\n      <div class=\"sb-foot\">\n        <div class=\"sb-user\">\n          <div class=\"sb-user-name\" id=\"sbName\">-</div>\n          <div class=\"sb-user-role\" id=\"sbRole\">-</div>\n        </div>\n        <button class=\"btn-logout\" onclick=\"doLogout()\">로그아웃</button>\n      </div>\n    </aside>\n\n    <button class=\"mobile-menu-btn\" onclick=\"toggleMobileMenu()\" title=\"메뉴 열기\"></button>\n    <div class=\"mobile-menu-overlay\" onclick=\"toggleMobileMenu()\"></div>\n\n    <main class=\"main\">\n\n      <!-- 현황판 -->\n      <div class=\"view\" id=\"vDashboard\">\n        <div class=\"pg-head\">\n          <div><div class=\"pg-title\">현황판</div><div class=\"pg-sub\">반별 서류 제출 현황</div></div>\n        </div>\n        <div class=\"sum-grid\" id=\"sumGrid\"></div>\n      </div>\n\n      <!-- 학생 관리 -->\n      <div class=\"view\" id=\"vStudents\">\n        <div class=\"pg-head\">\n          <div><div class=\"pg-title\">학생 관리</div><div class=\"pg-sub\">서류 제출 현황을 업데이트하세요</div></div>\n          <div class=\"pg-actions\">\n            <button class=\"btn btn-ghost\" id=\"exportBtn\" onclick=\"exportClass()\"> 내보내기</button><button class=\"btn btn-ghost\" onclick=\"window.print()\"> 인쇄하기</button>\n            <button class=\"btn btn-gold\" onclick=\"openStuModal()\">+ 학생 추가</button>\n          </div>\n        </div>\n        <div class=\"tool-bar\">\n          <input class=\"search-input\" id=\"stuSearch\" placeholder=\"이름 또는 학번 검색\" oninput=\"renderStudents()\">\n          <div id=\"clsChips\"></div>\n        </div>\n        <div class=\"card\">\n          <div class=\"tbl-wrap\">\n            <table class=\"tbl sticky-3\" id=\"stuTable\">\n              <thead>\n                <tr>\n                  <th onclick=\"setSortCol('studentId')\" style=\"cursor:pointer;user-select:none\">학번 <span id=\"sh-studentId\"></span></th>\n                  <th onclick=\"setSortCol('name')\" style=\"cursor:pointer;user-select:none\">성명 <span id=\"sh-name\"></span></th>\n                  <th onclick=\"setSortCol('gender')\" style=\"cursor:pointer;user-select:none\">성별 <span id=\"sh-gender\"></span></th>\n                  <th class=\"center\">전입신고서</th>\n                  <th class=\"center\">건강보험증</th>\n                  <th class=\"center\">신분증</th>\n                  <th class=\"center\">징병검사</th>\n                  <th onclick=\"setSortCol('round')\" style=\"cursor:pointer;user-select:none\">회차 <span id=\"sh-round\"></span></th>\n                  <th>비고</th><th class=\"center\">퇴소</th><th></th>\n                </tr>\n              </thead>\n              <tbody id=\"stuBody\"></tbody>\n            </table>\n          </div>\n        </div>\n      </div>\n\n      <!-- 수능 원서접수 -->\n      <div class=\"view\" id=\"vSuneung\">\n        <div class=\"pg-head\">\n          <div><div class=\"pg-title\">수능 원서접수</div><div class=\"pg-sub\">원서접수 서류 제출 현황을 관리하세요</div></div>\n        </div>\n        <div class=\"tool-bar\">\n          <input class=\"search-input\" id=\"snSearch\" placeholder=\"이름 또는 학번 검색\" oninput=\"renderSuneung()\">\n          <div id=\"snClsChips\"></div>\n          <button class=\"btn btn-gold\" onclick=\"exportSuneungExcel()\"> 엑셀 내보내기</button><button class=\"btn btn-ghost\" onclick=\"window.print()\"> 인쇄하기</button>\n        </div>\n        <div class=\"card\">\n          <div class=\"tbl-wrap\">\n            <table class=\"tbl sticky-4\" id=\"snTable\">\n              <thead>\n                <tr>\n                  <th onclick=\"snSort('studentId')\" style=\"cursor:pointer\">학번<span class=\"sort-ind\" data-col=\"studentId\"></span></th>\n                  <th onclick=\"snSort('name')\" style=\"cursor:pointer\">성명<span class=\"sort-ind\" data-col=\"name\"></span></th>\n                  <th onclick=\"snSort('gender')\" style=\"cursor:pointer\">성별<span class=\"sort-ind\" data-col=\"gender\"></span></th>\n                  <th onclick=\"snSort('className')\" style=\"cursor:pointer\">반<span class=\"sort-ind\" data-col=\"className\"></span></th>\n                  <th class=\"center\" onclick=\"snSort('transfer')\" style=\"cursor:pointer\">전입여부<span class=\"sort-ind\" data-col=\"transfer\"></span></th>\n                  <th class=\"center\" onclick=\"snSort('online')\" style=\"cursor:pointer\">온라인<span class=\"sort-ind\" data-col=\"online\"></span></th>\n                  <th class=\"center\" onclick=\"snSort('charter')\" style=\"cursor:pointer\">초본<span class=\"sort-ind\" data-col=\"charter\"></span></th>\n                  <th class=\"center\" onclick=\"snSort('snIdCard')\" style=\"cursor:pointer\">신분증<span class=\"sort-ind\" data-col=\"snIdCard\"></span></th>\n                  <th class=\"center\" onclick=\"snSort('qualDoc')\" style=\"cursor:pointer\">학력증빙서류<span class=\"sort-ind\" data-col=\"qualDoc\"></span></th>\n                  <th class=\"center\" onclick=\"snSort('offlineDocs')\" style=\"cursor:pointer\" title=\"응시원서, 사진, 수수료\">온라인X<span class=\"sort-ind\" data-col=\"offlineDocs\"></span></th>\n                  <th onclick=\"snSort('vehicle')\" style=\"cursor:pointer\">차량<span class=\"sort-ind\" data-col=\"vehicle\"></span></th>\n                  <th class=\"center\" onclick=\"snSort('time')\" style=\"cursor:pointer\">출발시간<span class=\"sort-ind\" data-col=\"time\"></span></th>\n                  <th>비고</th>\n                  <th class=\"center\">퇴소</th>\n                </tr>\n              </thead>\n              <tbody id=\"snBody\"></tbody>\n            </table>\n          </div>\n        </div>\n      </div>\n\n      <!-- 담임용 수능 원서접수 -->\n      <div class=\"view\" id=\"vMySuneung\">\n        <div class=\"pg-head\">\n          <div><div class=\"pg-title\">수능 원서접수</div><div class=\"pg-sub\">담임 반 학생의 원서접수 서류 현황</div></div>\n        </div>\n        <div class=\"tool-bar\">\n          <input class=\"search-input\" id=\"mySnSearch\" placeholder=\"이름 또는 학번 검색\" oninput=\"renderMySuneung()\">\n          <button class=\"btn btn-gold\" onclick=\"exportSuneungExcel()\"> 엑셀 내보내기</button><button class=\"btn btn-ghost\" onclick=\"window.print()\"> 인쇄하기</button>\n        </div>\n        <div class=\"card\">\n          <div class=\"tbl-wrap\">\n            <table class=\"tbl sticky-3\" id=\"mySnTable\">\n              <thead>\n                <tr>\n                  <th onclick=\"mySnSort('studentId')\" style=\"cursor:pointer\">학번<span class=\"sort-ind\" data-mycol=\"studentId\"></span></th>\n                  <th onclick=\"mySnSort('name')\" style=\"cursor:pointer\">성명<span class=\"sort-ind\" data-mycol=\"name\"></span></th>\n                  <th onclick=\"mySnSort('gender')\" style=\"cursor:pointer\">성별<span class=\"sort-ind\" data-mycol=\"gender\"></span></th>\n                  <th class=\"center\" onclick=\"mySnSort('transfer')\" style=\"cursor:pointer\">전입여부<span class=\"sort-ind\" data-mycol=\"transfer\"></span></th>\n                  <th class=\"center\" onclick=\"mySnSort('online')\" style=\"cursor:pointer\">온라인<span class=\"sort-ind\" data-mycol=\"online\"></span></th>\n                  <th class=\"center\" onclick=\"mySnSort('charter')\" style=\"cursor:pointer\">초본<span class=\"sort-ind\" data-mycol=\"charter\"></span></th>\n                  <th class=\"center\" onclick=\"mySnSort('snIdCard')\" style=\"cursor:pointer\">신분증<span class=\"sort-ind\" data-mycol=\"snIdCard\"></span></th>\n                  <th class=\"center\" onclick=\"mySnSort('qualDoc')\" style=\"cursor:pointer\">학력증빙서류<span class=\"sort-ind\" data-mycol=\"qualDoc\"></span></th>\n                  <th class=\"center\" onclick=\"mySnSort('offlineDocs')\" style=\"cursor:pointer\" title=\"응시원서, 사진, 수수료\">온라인X<span class=\"sort-ind\" data-mycol=\"offlineDocs\"></span></th>\n                  <th onclick=\"mySnSort('vehicle')\" style=\"cursor:pointer\">차량<span class=\"sort-ind\" data-mycol=\"vehicle\"></span></th>\n                  <th class=\"center\" onclick=\"mySnSort('time')\" style=\"cursor:pointer\">출발시간<span class=\"sort-ind\" data-mycol=\"time\"></span></th>\n                  <th>비고</th>\n                  <th class=\"center\">퇴소</th>\n                </tr>\n              </thead>\n              <tbody id=\"mySnBody\"></tbody>\n            </table>\n          </div>\n        </div>\n      </div>\n\n      <!-- 수능 원서접수 차량 스케줄 -->\n      <div class=\"view\" id=\"vVehicleSchedule\">\n        <div class=\"pg-head\">\n          <div><div class=\"pg-title\">수능 원서접수 차량 스케줄</div><div class=\"pg-sub\">2027학년도 수능 원서접수일 차량 운행 일정</div></div>\n        </div>\n        <div id=\"vehicleScheduleContent\"></div>\n      </div>\n\n      <!-- 스케줄 -->\n      <div class=\"view\" id=\"vSchedule\">\n        <div class=\"pg-head\">\n          <div><div class=\"pg-title\">스케줄 관리</div><div class=\"pg-sub\">반별 회차 일정</div></div>\n          <div class=\"pg-actions\">\n            <button class=\"btn btn-ghost\" onclick=\"openAutoSchedule()\"> 자동 편성</button>\n            <button class=\"btn btn-gold\" onclick=\"openSchModal()\">+ 일정 추가</button>\n          </div>\n        </div>\n        <div class=\"sch-grid\" id=\"schGrid\"></div>\n        <div style=\"margin-top:24px\">\n          <div style=\"font-size:15px;font-weight:700;color:var(--g900);margin-bottom:12px\">날짜별 일정</div>\n          <div class=\"card\">\n            <div class=\"tbl-wrap\">\n              <table class=\"tbl\">\n                <thead><tr><th>날짜</th><th>해당 반 (인원)</th><th>회차</th><th>합계</th><th>상태</th></tr></thead>\n                <tbody id=\"schDateBody\"></tbody>\n              </table>\n            </div>\n          </div>\n        </div>\n      </div>\n\n      <!-- Import -->\n      <div class=\"view\" id=\"vImport\">\n        <div class=\"pg-head\">\n          <div><div class=\"pg-title\">데이터 가져오기</div><div class=\"pg-sub\">기존 CSV 또는 엑셀 파일을 업로드하세요</div></div>\n          <div class=\"pg-actions\">\n            <button class=\"btn btn-red\" onclick=\"resetAllData()\"> 데이터 일괄 리셋</button>\n            <button class=\"btn btn-ghost\" onclick=\"downloadSample()\"> 샘플 엑셀 다운로드</button>\n          </div>\n        </div>\n\n        <div class=\"card\" style=\"margin-bottom:16px\">\n          <div class=\"card-head\"><div class=\"card-head-title\">학생 명단 import</div></div>\n          <div class=\"card-body\">\n            <div class=\"info-box\">\n               <strong>지원 형식:</strong> 기존 구글 시트 CSV (반별 시트) 또는 엑셀<br>\n              헤더: <code>No. · 반 · 학번 · 성별 · 성명 · 전입신고서 · 건강보험증 · 신분증 · 징병검사 · 비고 · 차수</code><br>\n              ㅇ = 제출완료로 자동 변환됩니다. 기존 학생은 업데이트, 신규는 추가됩니다.\n            </div>\n            <label class=\"upload-zone\" for=\"importFile\">\n              <div class=\"uz-icon\"></div>\n              <div class=\"uz-text\">클릭하거나 파일을 드래그하세요</div>\n              <div class=\"uz-sub\">.csv · .xlsx · .xls</div>\n            </label>\n            <input type=\"file\" id=\"importFile\" accept=\".csv,.xlsx,.xls\" style=\"display:none\" onchange=\"handleImport(this)\">\n          </div>\n        </div>\n        <div class=\"card\" id=\"importPreviewCard\" style=\"display:none\">\n          <div class=\"card-head\">\n            <div class=\"card-head-title\"> 미리보기 <span id=\"importCount\" style=\"font-weight:400;font-size:12px;color:var(--t2)\"></span></div>\n            <button class=\"btn btn-gold btn-sm\" onclick=\"commitImport()\"> 가져오기 실행</button>\n          </div>\n          <div class=\"tbl-wrap\">\n            <table class=\"tbl\">\n              <thead><tr><th>반</th><th>학번</th><th>성명</th><th>성별</th><th class=\"center\">전입신고서</th><th class=\"center\">건강보험증</th><th class=\"center\">신분증</th><th class=\"center\">징병검사</th><th>회차</th><th>비고</th></tr></thead>\n              <tbody id=\"importBody\"></tbody>\n            </table>\n          </div>\n        </div>\n\n        <div class=\"card\" style=\"margin-bottom:16px\">\n          <div class=\"card-head\"><div class=\"card-head-title\">원서접수 배차정보 업데이트</div></div>\n          <div class=\"card-body\">\n            <div class=\"info-box\">\n               <strong>학번 기준으로 차량 배정만 업데이트합니다.</strong><br>\n              필수 컬럼: <code>학번</code>, <code>차량</code> (다른 컬럼은 무시)<br>\n              차량 값은 앱의 15대 차량 목록과 정확히 일치해야 합니다. 셀이 비어있으면 <b>미배정</b>으로 처리됩니다.<br>\n              다른 필드(초본·신분증·학력증빙·비고 등)는 <b>건드리지 않습니다</b>.\n            </div>\n            <label class=\"upload-zone\" for=\"vehicleImportFile\">\n              <div class=\"uz-icon\"></div>\n              <div class=\"uz-text\">클릭하거나 파일을 드래그하세요</div>\n              <div class=\"uz-sub\">.csv · .xlsx · .xls</div>\n            </label>\n            <input type=\"file\" id=\"vehicleImportFile\" accept=\".csv,.xlsx,.xls\" style=\"display:none\" onchange=\"handleVehicleImport(this)\">\n          </div>\n        </div>\n        <div class=\"card\" id=\"vehicleImportPreviewCard\" style=\"display:none\">\n          <div class=\"card-head\">\n            <div class=\"card-head-title\"> 미리보기 <span id=\"vehicleImportCount\" style=\"font-weight:400;font-size:12px;color:var(--t2)\"></span></div>\n            <button class=\"btn btn-gold btn-sm\" onclick=\"commitVehicleImport()\"> 배차 업데이트 실행</button>\n          </div>\n          <div class=\"tbl-wrap\">\n            <table class=\"tbl\">\n              <thead><tr><th>학번</th><th>이름 (앱)</th><th>차량</th><th class=\"center\">상태</th></tr></thead>\n              <tbody id=\"vehicleImportBody\"></tbody>\n            </table>\n          </div>\n        </div>\n      </div>\n\n      <!-- 반 관리 -->\n      <div class=\"view\" id=\"vClasses\">\n        <div class=\"pg-head\">\n          <div><div class=\"pg-title\">반 관리</div></div>\n          <div class=\"pg-actions\">\n            <button class=\"btn btn-ghost\" onclick=\"bulkSetPasswords()\"> 비밀번호 일괄 설정</button>\n            <button class=\"btn btn-gold\" onclick=\"openClsModal()\">+ 반 추가</button>\n          </div>\n        </div>\n        <div class=\"card\"><div id=\"clsList\"></div></div>\n      </div>\n\n      <!-- 사용자 관리 -->\n      <div class=\"view\" id=\"vUsers\">\n        <div class=\"pg-head\">\n          <div><div class=\"pg-title\">사용자 관리</div></div>\n          <button class=\"btn btn-gold\" onclick=\"openUsrModal()\">+ 계정 등록</button>\n        </div>\n        <div class=\"card\"><div id=\"usrList\"></div></div>\n      </div>\n\n      <!-- 담임: 내 반 현황 -->\n      <div class=\"view\" id=\"vMyClass\">\n        <div class=\"pg-head\">\n          <div><div class=\"pg-title\">내 반 현황</div><div class=\"pg-sub\" id=\"myClsName\"></div></div>\n          <div class=\"pg-actions\">\n            <button class=\"btn btn-ghost\" onclick=\"exportClass()\"> 내보내기</button><button class=\"btn btn-ghost\" onclick=\"window.print()\"> 인쇄하기</button>\n            <button class=\"btn btn-gold\" onclick=\"openStuModal()\">+ 학생 추가</button>\n          </div>\n        </div>\n        <div id=\"mySchBanner\" style=\"margin-bottom:14px\"></div>\n        <div id=\"myDash\" style=\"margin-bottom:18px\"></div>\n        <div class=\"card\">\n          <div class=\"tool-bar\" style=\"padding:12px 14px 0\">\n            <input class=\"search-input\" id=\"myStuSearch\" placeholder=\"이름 또는 학번\" oninput=\"renderMyStudents()\">\n          </div>\n          <div class=\"tbl-wrap\">\n            <table class=\"tbl sticky-3\">\n              <thead><tr>\n                <th onclick=\"setSortCol('studentId')\" style=\"cursor:pointer;user-select:none\">학번 <span id=\"msh-studentId\"></span></th>\n                <th onclick=\"setSortCol('name')\" style=\"cursor:pointer;user-select:none\">성명 <span id=\"msh-name\"></span></th>\n                <th onclick=\"setSortCol('gender')\" style=\"cursor:pointer;user-select:none\">성별 <span id=\"msh-gender\"></span></th>\n                <th class=\"center\">전입신고서</th><th class=\"center\">건강보험증</th>\n                <th class=\"center\">신분증</th><th class=\"center\">징병검사</th>\n                <th onclick=\"setSortCol('round')\" style=\"cursor:pointer;user-select:none\">회차 <span id=\"msh-round\"></span></th>\n                <th>비고</th><th class=\"center\">퇴소</th><th></th>\n              </tr></thead>\n              <tbody id=\"myStuBody\"></tbody>\n            </table>\n          </div>\n        </div>\n      </div>\n\n      <!-- 담임: 전체 스케줄 -->\n      <div class=\"view\" id=\"vAllSchedule\">\n        <div class=\"pg-head\">\n          <div><div class=\"pg-title\">전체 스케줄</div><div class=\"pg-sub\">날짜별 전입신고 일정</div></div>\n        </div>\n        <div class=\"card\">\n          <div class=\"tbl-wrap\">\n            <table class=\"tbl\">\n              <thead><tr><th>날짜</th><th>해당 반 (인원)</th><th>회차</th><th>합계</th><th>상태</th></tr></thead>\n              <tbody id=\"teacherSchDateBody\"></tbody>\n            </table>\n          </div>\n        </div>\n      </div>\n\n      <!-- 담임: 전입신고 서류 -->\n      <div class=\"view\" id=\"vDocs\">\n        <div class=\"pg-head\">\n          <div><div class=\"pg-title\">전입신고 서류</div><div class=\"pg-sub\">서류를 확인하고 다운로드하세요</div></div>\n        </div>\n        <div style=\"display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px\" id=\"docsBtns\">\n          <div style=\"color:var(--t3);font-size:13px\">서류를 불러오는 중…</div>\n        </div>\n        <div class=\"card\">\n          <div class=\"card-head\"><div class=\"card-head-title\">전입신고 작성 샘플</div></div>\n          <div class=\"card-body\" id=\"docsSample\">\n            <div class=\"empty\"><div class=\"ei\"></div><p>등록된 샘플이 없습니다.</p></div>\n          </div>\n        </div>\n      </div>\n\n      <!-- 직원: 서류 관리 (구글 드라이브 링크 방식) -->\n      <div class=\"view\" id=\"vDocsAdmin\">\n        <div class=\"pg-head\">\n          <div><div class=\"pg-title\">서류 관리</div><div class=\"pg-sub\">구글 드라이브 공유 링크를 붙여넣으세요</div></div>\n          <button class=\"btn btn-gold\" onclick=\"saveDocs()\">저장</button>\n        </div>\n        <div class=\"info-box\">\n           구글 드라이브에서 파일 우클릭 → 공유 → 링크 복사 → 아래에 붙여넣기<br>\n          저장하면 <strong>직접 다운로드 링크로 자동 변환</strong>돼서 담임이 버튼 누르면 바로 파일이 다운로드됩니다.<br>\n          단, 구글 드라이브 공유 설정이 <strong>\"링크가 있는 모든 사용자\"</strong>로 되어 있어야 합니다.\n        </div>\n        <div style=\"display:grid;gap:14px\">\n          <div class=\"card\">\n            <div class=\"card-head\"><div class=\"card-head-title\">전입신고 서류 다운로드 링크</div></div>\n            <div class=\"card-body\">\n              <div class=\"fg\" style=\"margin:0\">\n                <label>구글 드라이브 링크</label>\n                <input type=\"url\" id=\"linkForm\" placeholder=\"https://drive.google.com/...\">\n              </div>\n            </div>\n          </div>\n          <div class=\"card\">\n            <div class=\"card-head\"><div class=\"card-head-title\">건강보험증 서류 다운로드 링크</div></div>\n            <div class=\"card-body\">\n              <div class=\"fg\" style=\"margin:0\">\n                <label>구글 드라이브 링크</label>\n                <input type=\"url\" id=\"linkIns\" placeholder=\"https://drive.google.com/...\">\n              </div>\n            </div>\n          </div>\n          <div class=\"card\">\n            <div class=\"card-head\"><div class=\"card-head-title\">전입신고 작성 샘플 (표시용)</div></div>\n            <div class=\"card-body\">\n              <div class=\"fg\">\n                <label>파일 형식</label>\n                <div style=\"display:flex;gap:16px;margin-top:4px\">\n                  <label style=\"display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer\">\n                    <input type=\"radio\" name=\"sampleType\" id=\"sampleTypeImg\" value=\"image\" checked onchange=\"updateSamplePreview()\"> 이미지 (JPG/PNG)\n                  </label>\n                  <label style=\"display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer\">\n                    <input type=\"radio\" name=\"sampleType\" id=\"sampleTypePdf\" value=\"pdf\" onchange=\"updateSamplePreview()\"> PDF\n                  </label>\n                </div>\n              </div>\n              <div class=\"fg\" style=\"margin-bottom:8px\">\n                <label>구글 드라이브 링크</label>\n                <input type=\"url\" id=\"linkSample\" placeholder=\"https://drive.google.com/...\" oninput=\"updateSamplePreview()\">\n              </div>\n              <div id=\"samplePreview\"></div>\n            </div>\n          </div>\n        </div>\n      </div>\n\n      <!-- 증명서 발급 -->\n      <div class=\"view\" id=\"vCert\">\n        <div class=\"pg-head\">\n          <div><div class=\"pg-title\">증명서 발급</div><div class=\"pg-sub\">재원증명서·수강확인서·졸업증명서 발급 및 이력 관리</div></div>\n          <div class=\"pg-actions\">\n            <button class=\"btn btn-ghost\" id=\"certTabForm\" onclick=\"certSwitchTab('form')\"> 발급</button>\n            <button class=\"btn btn-ghost\" id=\"certTabHistory\" onclick=\"certSwitchTab('history')\"> 이력</button>\n          </div>\n        </div>\n\n        <!-- 발급 폼 -->\n        <div id=\"certFormPanel\" style=\"display:grid;grid-template-columns:1fr 620px;gap:16px;align-items:start\">\n          <div class=\"card\">\n            <div class=\"card-head\"><div class=\"card-head-title\">발급 정보</div></div>\n            <div class=\"card-body\" style=\"display:grid;gap:14px\">\n              <div class=\"fg\">\n                <label>증명서 종류</label>\n                <select id=\"certType\" onchange=\"certUpdatePreview();certTogglePeriodOverride()\">\n                  <option value=\"재원증명서\">재원증명서</option>\n                  <option value=\"수강확인서\">수강확인서</option>\n                  <option value=\"졸업증명서\">졸업증명서</option>\n                </select>\n              </div>\n              <div class=\"fg\">\n                <label>학번</label>\n                <div style=\"display:flex;gap:6px\">\n                  <input type=\"text\" id=\"certStudentId\" placeholder=\"학번 입력\" oninput=\"certLookupStudent()\" style=\"flex:1\">\n                  <button class=\"btn btn-ghost btn-sm\" onclick=\"certLookupStudent()\">조회</button>\n                </div>\n                <div id=\"certStudentInfo\" style=\"margin-top:6px;font-size:13px;color:var(--t3)\"></div>\n              </div>\n              <div class=\"fg\">\n                <label>성명 <span style=\"font-size:12px;color:var(--t3);font-weight:400\">(학번 조회 시 자동, 미등록 학생은 직접 입력)</span></label>\n                <input type=\"text\" id=\"certName\" placeholder=\"학생 성명\" oninput=\"certUpdatePreview()\">\n              </div>\n              <div class=\"fg\">\n                <label>반 <span style=\"font-size:12px;color:var(--t3);font-weight:400\">(선택, 자동 채움)</span></label>\n                <input type=\"text\" id=\"certClassName\" placeholder=\"예: O1\" oninput=\"certUpdatePreview()\">\n              </div>\n              <div class=\"fg\">\n                <label>생년월일 <span style=\"font-size:12px;color:var(--t3);font-weight:400\">(YYYY-MM-DD 또는 YYYY.MM.DD)</span></label>\n                <input type=\"text\" id=\"certBirthday\" placeholder=\"예: 2005-03-15\" oninput=\"certUpdatePreview()\">\n                <div id=\"certBirthdayNote\" style=\"margin-top:4px;font-size:12px;color:var(--t3)\"></div>\n              </div>\n              <div class=\"fg\">\n                <label>과정 (수강반)</label>\n                <select id=\"certCourse\" onchange=\"certUpdatePreview();certAutoFillDates()\"></select>\n              </div>\n              <div class=\"fg\" id=\"certPeriodOverrideBox\" style=\"display:none\">\n                <label>수업기간 <span style=\"font-size:12px;color:var(--t3);font-weight:400\">(수강확인서용, 과정 선택 시 자동 채움. 원하면 직접 수정)</span></label>\n                <div style=\"display:flex;gap:8px;align-items:center\">\n                  <input type=\"date\" id=\"certPeriodStart\" oninput=\"certUpdatePreview()\" style=\"flex:1\">\n                  <span>~</span>\n                  <input type=\"date\" id=\"certPeriodEnd\" oninput=\"certUpdatePreview()\" style=\"flex:1\">\n                </div>\n              </div>\n              <div class=\"fg\">\n                <label>용도</label>\n                <input type=\"text\" id=\"certPurpose\" placeholder=\"예: 정부24 전입신고용\" oninput=\"certUpdatePreview()\">\n              </div>\n              <div class=\"fg\">\n                <label>발급자 이름</label>\n                <input type=\"text\" id=\"certIssuer\" placeholder=\"발급자 이름\" oninput=\"certUpdatePreview();certSaveIssuerLive()\">\n              </div>\n              <div class=\"fg\">\n                <label>이메일 <span style=\"font-size:12px;color:var(--t3);font-weight:400\">(이메일 발급 시 사용, 학번 조회 시 시트에서 자동 채워짐)</span></label>\n                <input type=\"email\" id=\"certEmail\" placeholder=\"user@example.com\">\n              </div>\n              <div class=\"fg\">\n                <label>첨부 형식 <span style=\"font-size:12px;color:var(--t3);font-weight:400\">(이메일 발급 시)</span></label>\n                <div style=\"display:flex;gap:16px;padding:6px 0\">\n                  <label style=\"cursor:pointer;font-weight:normal\"><input type=\"radio\" name=\"certAttachFormat\" value=\"pdf\" checked style=\"margin-right:6px\"> PDF</label>\n                  <label style=\"cursor:pointer;font-weight:normal\"><input type=\"radio\" name=\"certAttachFormat\" value=\"image\" style=\"margin-right:6px\"> 이미지 (PNG)</label>\n                </div>\n              </div>\n              <div style=\"border-top:1px solid var(--warm2);padding-top:12px;display:flex;gap:8px;flex-wrap:wrap\">\n                <button class=\"btn btn-gold\" onclick=\"certIssue('pdf')\"> PDF 발급</button>\n                <button class=\"btn btn-gold\" onclick=\"certIssue('print')\"> 인쇄 발급</button>\n                <button class=\"btn btn-gold\" onclick=\"certIssue('email')\"> 이메일 발급</button>\n                <button class=\"btn btn-ghost\" onclick=\"certReset()\">초기화</button>\n              </div>\n              <details style=\"margin-top:8px\">\n                <summary style=\"cursor:pointer;font-size:13px;color:var(--t2)\"> 이메일 발송 설정 (관리자)</summary>\n                <div style=\"margin-top:10px;padding:12px;background:var(--warm1);border-radius:8px;display:grid;gap:10px\">\n                  <div style=\"font-size:12px;color:var(--t3)\">\n                    <strong>Apps Script + Brevo (자동 발송용)</strong> — 문서 일괄발송, 증명서 자동 발송에 사용됩니다.<br>\n                    Apps Script 웹앱 배포 URL을 입력하세요.\n                  </div>\n                  <div class=\"fg\" style=\"margin:0\"><label>Apps Script 웹앱 URL</label><input type=\"text\" id=\"ejsAppsScriptUrl\" placeholder=\"https://script.google.com/macros/s/AKfyc.../exec\"></div>\n                  <div class=\"fg\" style=\"margin:0\"><label>이메일 제목 템플릿</label><input type=\"text\" id=\"ejsSubjectTpl\" placeholder=\"[강남대성기숙 QUETTA] {종류} 발송 안내 ({학생명})\"></div>\n                  <div class=\"fg\" style=\"margin:0\">\n                    <label>이메일 본문 템플릿 <span style=\"font-size:12px;color:var(--t3);font-weight:400\">플레이스홀더: {학생명} {학번} {반} {종류} {번호} {과정} {수업기간} {용도} {발급일} {첨부형식}</span></label>\n                    <textarea id=\"ejsBodyTpl\" rows=\"10\" style=\"width:100%;padding:8px;border:1.5px solid var(--warm2);border-radius:6px;font-family:'Noto Sans KR',sans-serif;font-size:13px;resize:vertical\"></textarea>\n                  </div>\n                  <hr style=\"border:none;border-top:1px solid var(--warm2);margin:6px 0\">\n                  <div style=\"font-size:12px;color:var(--t3)\">\n                    <strong>그룹웨어 (반자동 발송용)</strong> — 증명서 단건 발송을 그룹웨어로 직접 하고 싶을 때 사용됩니다.\n                  </div>\n                  <div class=\"fg\" style=\"margin:0\"><label>그룹웨어 메일쓰기 URL</label><input type=\"text\" id=\"ejsMailUrl\" placeholder=\"https://gware.dshw.co.kr/mail/mail.do\"></div>\n                  <hr style=\"border:none;border-top:1px solid var(--warm2);margin:6px 0\">\n                  <div style=\"font-size:12px;color:var(--t3)\">\n                    <strong>구글 시트 (학번-이메일 자동 조회용)</strong> — 발송 시 학번으로 이메일 자동 채움. 선택 사항.\n                  </div>\n                  <div class=\"fg\" style=\"margin:0\"><label>구글 시트 URL 또는 ID</label><input type=\"text\" id=\"ejsSheetUrl\" placeholder=\"https://docs.google.com/spreadsheets/d/...\"></div>\n                  <div style=\"display:grid;grid-template-columns:1fr 1fr;gap:8px\">\n                    <div class=\"fg\" style=\"margin:0\"><label>학번 컬럼명</label><input type=\"text\" id=\"ejsIdCol\" placeholder=\"예: 학번\"></div>\n                    <div class=\"fg\" style=\"margin:0\"><label>이메일 컬럼명</label><input type=\"text\" id=\"ejsEmailCol\" placeholder=\"예: 이메일 주소\"></div>\n                  </div>\n                  <div style=\"display:flex;gap:6px;flex-wrap:wrap\">\n                    <button class=\"btn btn-gold btn-sm\" onclick=\"saveEmailConfig()\"> 저장</button>\n                    <button class=\"btn btn-ghost btn-sm\" onclick=\"testSheetLookup()\"> 시트 조회 테스트</button>\n                    <button class=\"btn btn-ghost btn-sm\" onclick=\"testAppsScript()\"> Apps Script 연결 테스트</button>\n                  </div>\n                  <div id=\"emailConfigStatus\" style=\"font-size:12px;color:var(--t3)\"></div>\n                </div>\n              </details>\n              <details style=\"margin-top:8px\">\n                <summary style=\"cursor:pointer;font-size:13px;color:var(--t2)\"> 과정 관리 (관리자)</summary>\n                <div style=\"margin-top:10px;padding:12px;background:var(--warm1);border-radius:8px;display:grid;gap:10px\">\n                  <div style=\"font-size:12px;color:var(--t3)\">\n                    과정 목록을 관리합니다. 여기 등록된 과정만 발급 폼에 표시됩니다.\n                  </div>\n                  <div style=\"display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:6px;align-items:end\">\n                    <div class=\"fg\" style=\"margin:0\"><label style=\"font-size:11px\">과정 이름</label><input type=\"text\" id=\"newCourseName\" placeholder=\"예: 2027 N수 정규시즌\"></div>\n                    <div class=\"fg\" style=\"margin:0\"><label style=\"font-size:11px\">시작일</label><input type=\"date\" id=\"newCourseStart\"></div>\n                    <div class=\"fg\" style=\"margin:0\"><label style=\"font-size:11px\">종료일</label><input type=\"date\" id=\"newCourseEnd\"></div>\n                    <button class=\"btn btn-gold btn-sm\" onclick=\"addCertCourse()\"> 추가</button>\n                  </div>\n                  <div style=\"max-height:200px;overflow-y:auto\">\n                    <table class=\"tbl\" style=\"margin-top:6px\">\n                      <thead><tr><th>과정 이름</th><th>시작일</th><th>종료일</th><th class=\"center\">삭제</th></tr></thead>\n                      <tbody id=\"courseListBody\"></tbody>\n                    </table>\n                  </div>\n                </div>\n              </details>\n              <details style=\"margin-top:8px\">\n                <summary style=\"cursor:pointer;font-size:13px;color:var(--t2)\"> 번호 카운터 관리 (관리자)</summary>\n                <div style=\"margin-top:10px;padding:12px;background:var(--warm1);border-radius:8px;display:grid;gap:10px\">\n                  <div style=\"font-size:12px;color:var(--t3)\">\n                    다음 발급될 증명서 번호를 조정할 수 있습니다. 테스트 후 원래 번호로 되돌릴 때 사용하세요.<br>\n                     신중히 사용 — 이미 발급된 번호와 겹치지 않도록 주의.\n                  </div>\n                  <div style=\"display:flex;gap:8px;align-items:center;flex-wrap:wrap\">\n                    <span style=\"font-size:13px;color:var(--t2)\">현재 마지막 발급 번호:</span>\n                    <strong id=\"counterCurrent\" style=\"font-size:15px;color:var(--brand-teal)\">-</strong>\n                    <button class=\"btn btn-ghost btn-sm\" onclick=\"loadCounterInfo()\"> 새로고침</button>\n                  </div>\n                  <div style=\"display:flex;gap:8px;align-items:end;flex-wrap:wrap\">\n                    <div class=\"fg\" style=\"margin:0;flex:1;min-width:120px\">\n                      <label>새 카운터 값 (last)</label>\n                      <input type=\"number\" id=\"counterReset\" placeholder=\"예: 33\">\n                    </div>\n                    <button class=\"btn btn-gold btn-sm\" onclick=\"resetCertCounter()\"> 카운터 재설정</button>\n                  </div>\n                  <div style=\"font-size:11px;color:var(--t3)\">\n                    * \"33\" 입력 시 → 다음 발급 번호는 <strong>2026-34(교)</strong>부터 시작<br>\n                    * 원본 시작값: <strong>33</strong> (스프레드시트 마지막 번호 기준)\n                  </div>\n                  <div id=\"counterResetStatus\" style=\"font-size:12px;color:var(--t3)\"></div>\n                </div>\n              </details>\n              <details style=\"margin-top:8px\">\n                <summary style=\"cursor:pointer;font-size:13px;color:var(--t2)\"> 일괄 발급 (여러 학번)</summary>\n                <div style=\"margin-top:10px;padding:12px;background:var(--warm1);border-radius:8px\">\n                  <div class=\"fg\">\n                    <label>학번 목록 (한 줄에 하나씩)</label>\n                    <textarea id=\"certBulkIds\" placeholder=\"5435&#10;5430&#10;5013&#10;&#10;구글 시트에서 자동으로 학번 가져오려면 아래 버튼 클릭\" rows=\"6\" style=\"width:100%;padding:8px;border:1.5px solid var(--warm2);border-radius:6px;font-family:'Noto Sans KR',sans-serif;font-size:13px\"></textarea>\n                    <div style=\"display:flex;gap:6px;margin-top:6px;flex-wrap:wrap\">\n                      <button class=\"btn btn-ghost btn-sm\" onclick=\"loadStudentIdsFromSheet()\"> 시트에서 학번 자동 불러오기</button>\n                      <button class=\"btn btn-ghost btn-sm\" onclick=\"$('certBulkIds').value = ''\"> 목록 비우기</button>\n                    </div>\n                    <div id=\"bulkIdsStatus\" style=\"font-size:12px;color:var(--t3);margin-top:6px\"></div>\n                  </div>\n                  <div style=\"font-size:12px;color:var(--t3);margin-bottom:8px\">위 폼의 종류·과정·용도·발급자 정보를 공통으로 사용합니다. 생년월일 미등록 학생은 건너뜁니다.</div>\n                  <div style=\"display:flex;gap:6px;flex-wrap:wrap\">\n                    <button class=\"btn btn-gold btn-sm\" onclick=\"certBulkIssue('pdf')\"> 일괄 PDF 발급</button>\n                    <button class=\"btn btn-gold btn-sm\" onclick=\"certBulkIssue('email')\"> 일괄 이메일 발급</button>\n                  </div>\n                </div>\n              </details>\n            </div>\n          </div>\n          <!-- 미리보기 (A4 세로) -->\n          <div>\n            <div style=\"font-size:13px;color:var(--t2);margin-bottom:8px\"> 미리보기 (A4 세로)</div>\n            <div style=\"background:#fff;border:1px solid var(--warm2);box-shadow:0 4px 12px rgba(0,0,0,.08);overflow:hidden\">\n              <div id=\"certPreview\" style=\"width:100%;aspect-ratio:1/1.414;position:relative\"></div>\n            </div>\n          </div>\n        </div>\n\n        <!-- 이력 -->\n        <div id=\"certHistoryPanel\" style=\"display:none\">\n          <div class=\"tool-bar\">\n            <input class=\"search-input\" id=\"certSearch\" placeholder=\"학번·이름·증명서번호 검색\" oninput=\"renderCertHistory()\">\n            <button class=\"btn btn-gold\" onclick=\"exportCertHistory()\"> 엑셀 내보내기</button>\n            <button class=\"btn btn-ghost\" onclick=\"window.print()\"> 인쇄하기</button>\n          </div>\n          <div class=\"card\">\n            <div class=\"tbl-wrap\">\n              <table class=\"tbl\" id=\"certHistoryTable\">\n                <thead><tr>\n                  <th>증명서 번호</th><th>발급일</th><th>종류</th>\n                  <th>학번</th><th>성명</th><th>과정</th><th>용도</th><th>발급자</th>\n                  <th class=\"center\">관리</th>\n                </tr></thead>\n                <tbody id=\"certHistoryBody\"></tbody>\n              </table>\n            </div>\n          </div>\n        </div>\n\n        <!-- PDF 생성용 숨김 컨테이너 (A4 실제 크기) -->\n        <div id=\"certPdfContainer\" style=\"position:absolute;left:-9999px;top:-9999px;width:794px;height:1123px;background:#fff\"></div>\n      </div>\n\n      <!-- 문서 일괄발송 -->\n      <div class=\"view\" id=\"vBulkSend\">\n        <div class=\"pg-head\">\n          <div><div class=\"pg-title\">문서 일괄발송</div><div class=\"pg-sub\">PDF 파일과 학번·이메일 엑셀을 업로드하면 자동 매칭해서 EmailJS로 발송합니다.</div></div>\n        </div>\n\n        <!-- 단계 1: 파일 업로드 -->\n        <div class=\"card\" style=\"margin-bottom:16px\">\n          <div class=\"card-head\"><div class=\"card-head-title\">① 파일 업로드</div></div>\n          <div class=\"card-body\">\n            <div style=\"display:grid;grid-template-columns:1fr 1fr;gap:16px\">\n              <!-- Excel -->\n              <div>\n                <div style=\"display:flex;justify-content:space-between;align-items:center;margin-bottom:6px\">\n                  <div style=\"font-size:13px;color:var(--t2);font-weight:600\"> 학번·이메일 엑셀</div>\n                  <button class=\"btn btn-ghost btn-sm\" onclick=\"downloadBulkSampleExcel()\" style=\"font-size:11px\"> 샘플 다운로드</button>\n                </div>\n                <div style=\"font-size:12px;color:var(--t3);margin-bottom:8px\">필수 컬럼: <code>학번</code>, <code>이메일</code> (있으면 <code>이름</code>도 사용됨)</div>\n                <label class=\"upload-zone\" for=\"bulkExcelFile\" style=\"min-height:100px\">\n                  <div class=\"uz-icon\" style=\"font-size:32px\"></div>\n                  <div class=\"uz-text\">엑셀/CSV 파일 선택</div>\n                  <div class=\"uz-sub\">.csv · .xlsx · .xls</div>\n                </label>\n                <input type=\"file\" id=\"bulkExcelFile\" accept=\".csv,.xlsx,.xls\" style=\"display:none\" onchange=\"handleBulkExcel(this)\">\n                <div id=\"bulkExcelStatus\" style=\"margin-top:8px;font-size:13px;color:var(--t3)\"></div>\n              </div>\n              <!-- PDFs -->\n              <div>\n                <div style=\"font-size:13px;color:var(--t2);margin-bottom:6px;font-weight:600\"> PDF 파일들</div>\n                <div style=\"font-size:12px;color:var(--t3);margin-bottom:8px\">파일명 <b>마지막 4자리 숫자 = 학번</b>으로 매칭 (예: <code>재원증명서_홍길동_5435.pdf</code>)</div>\n                <label class=\"upload-zone\" for=\"bulkPdfFiles\" style=\"min-height:100px\">\n                  <div class=\"uz-icon\" style=\"font-size:32px\"></div>\n                  <div class=\"uz-text\">PDF 여러 개 선택</div>\n                  <div class=\"uz-sub\">.pdf (다중 선택 가능)</div>\n                </label>\n                <input type=\"file\" id=\"bulkPdfFiles\" accept=\".pdf\" multiple style=\"display:none\" onchange=\"handleBulkPdfs(this)\">\n                <div id=\"bulkPdfStatus\" style=\"margin-top:8px;font-size:13px;color:var(--t3)\"></div>\n              </div>\n            </div>\n          </div>\n        </div>\n\n        <!-- 단계 2: 이메일 내용 -->\n        <div class=\"card\" style=\"margin-bottom:16px\">\n          <div class=\"card-head\"><div class=\"card-head-title\">② 이메일 내용 (모든 수신자 공통)</div></div>\n          <div class=\"card-body\">\n            <div class=\"fg\">\n              <label>제목</label>\n              <input type=\"text\" id=\"bulkSubject\" value=\"[강남대성기숙 QUETTA] 서류 발송 안내\">\n            </div>\n            <div class=\"fg\">\n              <label>본문 <span style=\"font-size:12px;color:var(--t3);font-weight:400\">플레이스홀더: {학번}, {이름}, {파일명}</span></label>\n              <textarea id=\"bulkBody\" rows=\"8\" style=\"width:100%;padding:10px;border:1.5px solid var(--warm2);border-radius:6px;font-family:'Noto Sans KR',sans-serif;font-size:13px;resize:vertical\">안녕하세요, {이름} 학생/학부모님.\n강남대성기숙 QUETTA 행정실입니다.\n\n요청하신 서류를 첨부하여 발송드립니다.\n확인 부탁드립니다.\n\n감사합니다.\n\nGood Better Best\n강남대성기숙 QUETTA</textarea>\n            </div>\n          </div>\n        </div>\n\n        <!-- 단계 3: 매칭 미리보기 -->\n        <div class=\"card\" id=\"bulkPreviewCard\" style=\"display:none;margin-bottom:16px\">\n          <div class=\"card-head\">\n            <div class=\"card-head-title\">③ 매칭 미리보기 <span id=\"bulkPreviewCount\" style=\"font-weight:400;font-size:12px;color:var(--t3)\"></span></div>\n          </div>\n          <div class=\"tbl-wrap\">\n            <table class=\"tbl\">\n              <thead><tr>\n                <th>파일명</th><th>학번</th><th>이름</th><th>수신 이메일</th><th class=\"center\">상태</th>\n              </tr></thead>\n              <tbody id=\"bulkPreviewBody\"></tbody>\n            </table>\n          </div>\n        </div>\n\n        <!-- 단계 4: 발송 실행 (항상 표시) -->\n        <div class=\"card\" style=\"margin-bottom:16px;background:var(--warm1)\">\n          <div class=\"card-body\" style=\"display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap\">\n            <div>\n              <div style=\"font-size:15px;font-weight:600;color:var(--ink)\">④ 일괄 발송 실행</div>\n              <div id=\"bulkSendReadyInfo\" style=\"font-size:13px;color:var(--t3);margin-top:4px\">파일과 엑셀 업로드 후 발송 가능합니다.</div>\n            </div>\n            <button class=\"btn btn-gold\" onclick=\"bulkSendExecute()\" style=\"min-width:180px;font-size:15px\"> 일괄 발송 실행</button>\n          </div>\n        </div>\n\n        <!-- 진행 로그 -->\n        <div class=\"card\" id=\"bulkLogCard\" style=\"display:none\">\n          <div class=\"card-head\"><div class=\"card-head-title\"> 발송 결과</div></div>\n          <div class=\"card-body\">\n            <div id=\"bulkLogBody\" style=\"font-size:13px;line-height:1.6;max-height:400px;overflow-y:auto\"></div>\n          </div>\n        </div>\n      </div>\n\n    </main>\n  </div>\n</div>\n\n<!-- MODAL: 학생 추가/수정 -->\n<!-- MODAL: 이메일 발송 (반자동 - 그룹웨어 창 + 복사 붙여넣기) -->\n<div class=\"overlay\" id=\"emailSendOverlay\">\n  <div class=\"modal\" style=\"max-width:640px\">\n    <div class=\"modal-head\">\n      <div class=\"modal-head-title\"> 이메일 발송 (그룹웨어)</div>\n      <button class=\"modal-x\" onclick=\"closeOverlay('emailSendOverlay')\">×</button>\n    </div>\n    <div class=\"modal-body\" style=\"max-height:70vh;overflow-y:auto\">\n      <input type=\"hidden\" id=\"emailSendCertId\">\n      <div style=\"padding:10px 12px;background:var(--warm1);border-radius:6px;font-size:13px;margin-bottom:12px\">\n        <strong>진행 순서</strong>: ① PDF 다운로드 → ② 그룹웨어 열기 → ③ 각 항목 복사·붙여넣기 + PDF 첨부 → ④ 그룹웨어에서 발송 → ⑤ 발송 완료 기록\n      </div>\n      <div class=\"fg\"><label>증명서</label><div id=\"emailSendCertInfo\" style=\"padding:8px 10px;background:var(--warm1);border-radius:6px;font-size:14px\"></div></div>\n      <div class=\"fg\"><label>학생</label><div id=\"emailSendStudentInfo\" style=\"padding:8px 10px;background:var(--warm1);border-radius:6px;font-size:14px\"></div></div>\n\n      <div class=\"fg\">\n        <label>받는사람 <span id=\"emailSendSource\" style=\"font-size:12px;color:var(--t3);font-weight:400\"></span></label>\n        <div style=\"display:flex;gap:6px\">\n          <input type=\"email\" id=\"emailSendTo\" placeholder=\"user@example.com\" style=\"flex:1\">\n          <button class=\"btn btn-ghost btn-sm\" onclick=\"copyEmailField('emailSendTo')\"> 복사</button>\n        </div>\n      </div>\n\n      <div class=\"fg\">\n        <label>제목</label>\n        <div style=\"display:flex;gap:6px\">\n          <input type=\"text\" id=\"emailSendSubject\" style=\"flex:1\">\n          <button class=\"btn btn-ghost btn-sm\" onclick=\"copyEmailField('emailSendSubject')\"> 복사</button>\n        </div>\n      </div>\n\n      <div class=\"fg\">\n        <label>본문</label>\n        <textarea id=\"emailSendBody\" rows=\"10\" style=\"width:100%;padding:8px;border:1.5px solid var(--warm2);border-radius:6px;font-family:'Noto Sans KR',sans-serif;font-size:13px;resize:vertical\"></textarea>\n        <button class=\"btn btn-ghost btn-sm\" onclick=\"copyEmailField('emailSendBody')\" style=\"margin-top:6px\"> 본문 복사</button>\n      </div>\n\n      <div class=\"fg\" style=\"margin-top:6px\">\n        <label>첨부 형식 <span style=\"font-size:12px;color:var(--t3);font-weight:400\">(자동 발송 시)</span></label>\n        <div style=\"display:flex;gap:16px;padding:6px 0\">\n          <label style=\"cursor:pointer;font-weight:normal\"><input type=\"radio\" name=\"emailSendFormat\" value=\"pdf\" checked style=\"margin-right:6px\"> PDF</label>\n          <label style=\"cursor:pointer;font-weight:normal\"><input type=\"radio\" name=\"emailSendFormat\" value=\"image\" style=\"margin-right:6px\"> 이미지 (PNG)</label>\n        </div>\n      </div>\n\n      <div id=\"emailSendStatus\" style=\"font-size:13px;color:var(--t3);margin-top:8px\"></div>\n    </div>\n    <div class=\"modal-foot\" style=\"flex-wrap:wrap;gap:6px\">\n      <button class=\"btn btn-ghost\" onclick=\"closeOverlay('emailSendOverlay')\">닫기</button>\n      <button class=\"btn btn-ghost\" onclick=\"downloadCertPdfForEmail()\"> PDF 다운로드</button>\n      <button class=\"btn btn-ghost\" onclick=\"openGroupwareMail()\"> 그룹웨어 열기</button>\n      <button class=\"btn btn-ghost\" onclick=\"markEmailSent()\"> 발송 완료 기록</button>\n      <button class=\"btn btn-gold\" onclick=\"sendCertEmailAuto()\"> 자동 발송</button>\n    </div>\n  </div>\n</div>\n\n<!-- MODAL: 차량 배정 학생 명단 -->\n<div class=\"overlay\" id=\"snListOverlay\">\n  <div class=\"modal\" style=\"max-width:520px\">\n    <div class=\"modal-head\">\n      <div class=\"modal-head-title\" id=\"snListTitle\">학생 명단</div>\n      <button class=\"modal-x\" onclick=\"closeOverlay('snListOverlay')\">×</button>\n    </div>\n    <div class=\"modal-body\" id=\"snListBody\" style=\"max-height:60vh;overflow-y:auto\"></div>\n    <div class=\"modal-foot\">\n      <button class=\"btn btn-ghost\" onclick=\"closeOverlay('snListOverlay')\">닫기</button>\n    </div>\n  </div>\n</div>\n\n<div class=\"overlay\" id=\"stuOverlay\">\n  <div class=\"modal\">\n    <div class=\"modal-head\"><div class=\"modal-head-title\" id=\"stuModalTitle\">학생 추가</div><button class=\"modal-x\" onclick=\"closeOverlay('stuOverlay')\">×</button></div>\n    <div class=\"modal-body\">\n      <input type=\"hidden\" id=\"stuEditId\">\n      <div class=\"fg\"><label>반</label><select id=\"stuClass\" onchange=\"onStuClassChange()\"></select></div>\n      <div class=\"fg\" id=\"stuSubClassGrp\" style=\"display:none\"><label>세부반</label><select id=\"stuSubClass\"></select></div>\n      <div style=\"display:grid;grid-template-columns:1fr 1fr;gap:10px\">\n        <div class=\"fg\"><label>학번</label><input type=\"text\" id=\"stuNo\" placeholder=\"학번\"></div>\n        <div class=\"fg\"><label>성별</label><select id=\"stuGender\"><option value=\"남\">남</option><option value=\"여\">여</option></select></div>\n      </div>\n      <div class=\"fg\"><label>성명</label><input type=\"text\" id=\"stuName\" placeholder=\"이름\"></div>\n      <div class=\"fg\"><label>생년월일 <span style=\"font-size:12px;color:var(--t3);font-weight:400\">(선택, 증명서 발급용)</span></label><input type=\"text\" id=\"stuBirthday\" placeholder=\"YYYY-MM-DD\"></div>\n      <div style=\"display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px\">\n        <label style=\"display:flex;align-items:center;gap:6px;font-size:13px\"><input type=\"checkbox\" id=\"cbForm\"> 전입신고서</label>\n        <label style=\"display:flex;align-items:center;gap:6px;font-size:13px\"><input type=\"checkbox\" id=\"cbIns\"> 건강보험증</label>\n        <label style=\"display:flex;align-items:center;gap:6px;font-size:13px\"><input type=\"checkbox\" id=\"cbId\"> 신분증</label>\n        <label style=\"display:flex;align-items:center;gap:6px;font-size:13px\"><input type=\"checkbox\" id=\"cbMil\"> 징병검사</label>\n      </div>\n      <div class=\"fg\"><label>회차</label>\n        <select id=\"stuRound\">\n          <option value=\"\">-</option>\n          <option value=\"1차\">1차</option>\n          <option value=\"2차\">2차</option>\n          <option value=\"3차\">3차</option>\n          <option value=\"개별완료\">개별완료</option>\n        </select>\n      </div>\n      <div class=\"fg\"><label>비고</label><input type=\"text\" id=\"stuNotes\" placeholder=\"비고\"></div>\n    </div>\n    <div class=\"modal-foot\">\n      <button class=\"btn btn-ghost\" onclick=\"closeOverlay('stuOverlay')\">취소</button>\n      <button class=\"btn btn-gold\" onclick=\"saveStudent()\">저장</button>\n    </div>\n  </div>\n</div>\n\n<!-- MODAL: 스케줄 -->\n<div class=\"overlay\" id=\"schOverlay\">\n  <div class=\"modal\">\n    <div class=\"modal-head\"><div class=\"modal-head-title\" id=\"schModalTitle\">일정 추가</div><button class=\"modal-x\" onclick=\"closeOverlay('schOverlay')\">×</button></div>\n    <div class=\"modal-body\">\n      <input type=\"hidden\" id=\"schEditId\">\n      <!-- 편집 모드: 단일 반 셀렉트 -->\n      <div class=\"fg\" id=\"schClassSingleGrp\" style=\"display:none\"><label>반</label><select id=\"schClass\"></select></div>\n      <!-- 추가 모드: 다중 반 체크박스 -->\n      <div class=\"fg\" id=\"schClassMultiGrp\">\n        <label style=\"display:flex;align-items:center;justify-content:space-between\">\n          <span>반 (여러 개 선택 가능)</span>\n          <span style=\"font-size:12px;color:var(--t3);cursor:pointer;font-weight:500\" onclick=\"toggleSchClsAll()\">전체 선택/해제</span>\n        </label>\n        <div id=\"schClassList\" style=\"display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;max-height:240px;overflow-y:auto;padding:12px;border:1.5px solid var(--warm2);border-radius:8px;background:var(--warm1)\"></div>\n      </div>\n      <div class=\"fg\"><label>회차</label>\n        <input type=\"text\" id=\"schRound\" list=\"schRoundOptions\" placeholder=\"예: 1차, 2차, 3차, 재수시\" autocomplete=\"off\" value=\"1차\">\n        <datalist id=\"schRoundOptions\">\n          <option value=\"1차\"><option value=\"2차\"><option value=\"3차\"><option value=\"개별완료\"><option value=\"재수시\">\n        </datalist>\n      </div>\n      <div class=\"fg\"><label>날짜</label><input type=\"date\" id=\"schDate\"></div>\n      <div class=\"fg\"><label>비고</label><input type=\"text\" id=\"schNotes\" placeholder=\"특이사항\"></div>\n    </div>\n    <div class=\"modal-foot\">\n      <button class=\"btn btn-ghost\" onclick=\"closeOverlay('schOverlay')\">취소</button>\n      <button class=\"btn btn-gold\" onclick=\"saveSchedule()\">저장</button>\n    </div>\n  </div>\n</div>\n\n<!-- MODAL: 자동 편성 -->\n<div class=\"overlay\" id=\"autoSchOverlay\">\n  <div class=\"modal\" style=\"max-width:600px\">\n    <div class=\"modal-head\">\n      <div class=\"modal-head-title\"> 스케줄 자동 편성</div>\n      <button class=\"modal-x\" onclick=\"closeOverlay('autoSchOverlay')\">×</button>\n    </div>\n    <div class=\"modal-body\">\n      <div class=\"info-box\">\n        A or B + C 조합으로 묶되 1회 최대 120명, 묶인 반(K,N1 등)은 분리되지 않습니다.\n      </div>\n      <div style=\"display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px\">\n        <div class=\"fg\">\n          <label>시작일</label>\n          <input type=\"date\" id=\"autoStartDate\">\n        </div>\n        <div class=\"fg\">\n          <label>회차</label>\n          <select id=\"autoRound\">\n            <option value=\"1차\">1차</option>\n            <option value=\"2차\">2차</option>\n            <option value=\"3차\">3차</option>\n          </select>\n        </div>\n      </div>\n      <div class=\"fg\">\n        <label>진행 요일 (복수 선택)</label>\n        <div style=\"display:flex;gap:14px;flex-wrap:wrap;margin-top:6px\">\n          <label style=\"display:flex;align-items:center;gap:4px;font-size:14px;cursor:pointer\"><input type=\"checkbox\" class=\"auto-day\" value=\"1\"> 월</label>\n          <label style=\"display:flex;align-items:center;gap:4px;font-size:14px;cursor:pointer\"><input type=\"checkbox\" class=\"auto-day\" value=\"2\"> 화</label>\n          <label style=\"display:flex;align-items:center;gap:4px;font-size:14px;cursor:pointer\"><input type=\"checkbox\" class=\"auto-day\" value=\"3\"> 수</label>\n          <label style=\"display:flex;align-items:center;gap:4px;font-size:14px;cursor:pointer\"><input type=\"checkbox\" class=\"auto-day\" value=\"4\"> 목</label>\n          <label style=\"display:flex;align-items:center;gap:4px;font-size:14px;cursor:pointer\"><input type=\"checkbox\" class=\"auto-day\" value=\"5\"> 금</label>\n        </div>\n      </div>\n      <!-- 편성 결과 미리보기 -->\n      <div id=\"autoResult\" style=\"display:none;margin-top:16px\">\n        <div style=\"font-size:14px;font-weight:600;color:var(--g900);margin-bottom:8px\">편성 결과</div>\n        <div id=\"autoResultBody\"></div>\n      </div>\n    </div>\n    <div class=\"modal-foot\">\n      <button class=\"btn btn-ghost\" onclick=\"closeOverlay('autoSchOverlay')\">취소</button>\n      <button class=\"btn btn-ghost\" onclick=\"runAutoSchedule()\">편성 미리보기</button>\n      <button class=\"btn btn-gold\" id=\"autoSaveBtn\" style=\"display:none\" onclick=\"saveAutoSchedule()\">스케줄 저장</button>\n    </div>\n  </div>\n</div>\n<div class=\"overlay\" id=\"clsOverlay\">\n  <div class=\"modal\">\n    <div class=\"modal-head\"><div class=\"modal-head-title\" id=\"clsModalTitle\">반 추가</div><button class=\"modal-x\" onclick=\"closeOverlay('clsOverlay')\">×</button></div>\n    <div class=\"modal-body\">\n      <input type=\"hidden\" id=\"clsEditId\">\n      <div class=\"fg\"><label>반 이름</label><input type=\"text\" id=\"clsName\" placeholder=\"예: A1, X1, K2\"></div>\n      <div class=\"fg\"><label>담임 이름 <span style=\"font-size:10px;color:var(--t3)\">(담임이 입력할 이름)</span></label><input type=\"text\" id=\"clsTeacherName\" placeholder=\"예: 송병수\"></div>\n      <div class=\"fg\"><label>담임 입장 비밀번호</label><input type=\"text\" id=\"clsPw\" placeholder=\"예: quetta1234\"></div>\n      <div class=\"fg\"><label>조편성분류</label>\n        <select id=\"clsCategory\">\n          <option value=\"\">미지정</option>\n          <option value=\"A\">A</option>\n          <option value=\"B\">B</option>\n          <option value=\"C\">C</option>\n        </select>\n      </div>\n    </div>\n    <div class=\"modal-foot\">\n      <button class=\"btn btn-ghost\" onclick=\"closeOverlay('clsOverlay')\">취소</button>\n      <button class=\"btn btn-gold\" onclick=\"saveClass()\">저장</button>\n    </div>\n  </div>\n</div>\n\n<!-- MODAL: 사용자 -->\n<div class=\"overlay\" id=\"usrOverlay\">\n  <div class=\"modal\">\n    <div class=\"modal-head\"><div class=\"modal-head-title\" id=\"usrModalTitle\">계정 등록</div><button class=\"modal-x\" onclick=\"closeOverlay('usrOverlay')\">×</button></div>\n    <div class=\"modal-body\">\n      <input type=\"hidden\" id=\"usrEditId\">\n      <div id=\"usrNewFields\">\n        <div class=\"fg\"><label>이메일</label><input type=\"email\" id=\"usrEmail\" placeholder=\"이메일\"></div>\n        <div class=\"fg\"><label>초기 비밀번호</label><input type=\"password\" id=\"usrPw\" placeholder=\"8자 이상\"></div>\n      </div>\n      <div class=\"fg\"><label>이름</label><input type=\"text\" id=\"usrName\" placeholder=\"이름\"></div>\n      <div class=\"fg\"><label>역할</label>\n        <select id=\"usrRole\" onchange=\"toggleClsField()\">\n          <option value=\"staff\">담당 직원 (전체 반)</option>\n          <option value=\"teacher\">담임 교사</option>\n        </select>\n      </div>\n      <div class=\"fg\" id=\"usrClsGrp\" style=\"display:none\">\n        <label>담당 반</label><select id=\"usrCls\"><option value=\"\">선택 안 함</option></select>\n      </div>\n    </div>\n    <div class=\"modal-foot\">\n      <button class=\"btn btn-ghost\" onclick=\"closeOverlay('usrOverlay')\">취소</button>\n      <button class=\"btn btn-gold\" id=\"usrSaveBtn\" onclick=\"saveUser()\">저장</button>\n    </div>\n  </div>\n</div>\n\n<div class=\"toast-wrap\" id=\"toastWrap\"></div>\n\n";
+
+export async function start($R, __QSA) {
+  const { collection, doc, addDoc, updateDoc, deleteDoc, getDocs, getDoc, setDoc,
+          query, orderBy, writeBatch, runTransaction, serverTimestamp, onSnapshot } = __QSA.fs;
+  // 원본 로그인 관련 함수는 QSA 에서 쓰지 않음 (호출되면 아무 일도 하지 않거나 안내 오류)
+  const __noop = () => () => {};
+  const __noLogin = async () => { throw new Error("QSA 로그인을 사용합니다"); };
+  const initializeApp = () => null, getAuth = () => null, getFirestore = () => null;
+  const signInWithEmailAndPassword = __noLogin, createUserWithEmailAndPassword = __noLogin, signInAnonymously = __noLogin;
+  const signOut = async () => {}, onAuthStateChanged = __noop, setPersistence = async () => {};
+  const browserSessionPersistence = null, browserLocalPersistence = null;
+
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const FB = null; // QSA: 원본 프로젝트 설정은 QSA 연결 계층이 관리
+
+/*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Firestore 보안 규칙 (Firebase Console → Firestore → 규칙)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuth() { return request.auth != null; }
+    function isStaff() {
+      return isAuth() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'staff';
+    }
+    match /users/{uid}     { allow read: if isAuth(); allow write: if isStaff(); }
+    match /classes/{id}    { allow read: if isAuth(); allow write: if isStaff(); }
+    match /schedules/{id}  { allow read: if isAuth(); allow write: if isStaff(); }
+    match /students/{id}   { allow read: if isAuth(); allow write: if isAuth(); }
+    match /records/{id}    { allow read: if isAuth(); allow write: if isAuth(); }
+    match /settings/{id}   { allow read: if isAuth(); allow write: if isStaff(); }
+  }
+}
+*/
+
+
+const app = null, app2 = null;
+const auth = null, auth2 = null;            // QSA: 로그인은 QSA 가 담당 (원본 로그인 화면 사용 안 함)
+const db = __QSA.db;                        // QSA: 원본 DB(quetta-2ea94) 연결
+
+// ── 상태 ──
+let me, meDoc;
+let classes=[], students=[], schedules=[], records=[], users=[], suneungRecords=[], certificates=[];
+let activeClsFilter = null;
+let importRows = [];
+let teacherSession = null; // { classIds: [...], name } — 담임 세션
+let teacherLoginInProgress = false; // 로그인 진행 중 플래그
+
+// ── 로그인 탭 전환 ──
+window.switchLoginTab = tab => {
+  const isStaff = tab === 'staff';
+  $('formStaff').style.display   = isStaff ? 'block' : 'none';
+  $('formTeacher').style.display = isStaff ? 'none'  : 'block';
+  $('tabStaff').style.background   = isStaff ? 'var(--g900)' : 'var(--warm1)';
+  $('tabStaff').style.color        = isStaff ? '#fff'         : 'var(--t2)';
+  $('tabTeacher').style.background = isStaff ? 'var(--warm1)' : 'var(--g900)';
+  $('tabTeacher').style.color      = isStaff ? 'var(--t2)'    : '#fff';
+  $('loginErr').style.display = 'none';
+  // 담임 탭 전환 시 반 선택란 항상 초기화 (링크 접속 후 일반 접속 시 숨김 방지)
+  if (!isStaff) $('tcClsGroup').style.display = 'block';
+};
+
+// ── URL 파라미터로 반 자동 선택 ──
+function checkUrlClass() {
+  const params = new URLSearchParams(location.search);
+  const cls = params.get('class');
+  if (cls) {
+    switchLoginTab('teacher');
+    const opt = [...$('tcCls').options].find(o => o.text.startsWith(cls));
+    if (opt) {
+      $('tcCls').value = opt.value;
+      // 링크로 접속 시 반 선택 숨김
+      $('tcClsGroup').style.display = 'none';
+    }
+  }
+}
+
+// ── 직원 로그인 ──
+window.doLogin = async () => {
+  const err = $('loginErr');
+  err.style.display = 'none';
+  try {
+    // 직원도 탭 닫으면 로그아웃
+    await setPersistence(auth, browserSessionPersistence);
+    await signInWithEmailAndPassword(auth, $('loginEmail').value.trim(), $('loginPw').value);
+  } catch(e) {
+    err.style.display = 'block';
+    err.textContent = e.code==='auth/invalid-credential' ? '이메일 또는 비밀번호 오류'
+                    : e.code==='auth/invalid-api-key'    ? 'Firebase API Key 오류'
+                    : `오류: ${e.code}`;
+  }
+};
+
+// ── 담임 입장 ──
+window.doTeacherLogin = async () => {
+  const err  = $('loginErr');
+  err.style.display = 'none';
+  const classId = $('tcCls').value;
+  const name    = $('tcName').value.trim();
+  const pw      = $('tcPw').value.trim().replace(/,/g, '');
+  if (!classId) { err.style.display='block'; err.textContent='반을 선택해 주세요.'; return; }
+  if (!name)    { err.style.display='block'; err.textContent='이름을 입력해 주세요.'; return; }
+  if (!pw)      { err.style.display='block'; err.textContent='비밀번호를 입력해 주세요.'; return; }
+
+  try {
+    teacherLoginInProgress = true;
+    await setPersistence(auth, browserSessionPersistence);
+    await signInAnonymously(auth);
+
+    // 선택한 반 정보 가져오기
+    const snap = await getDocs(query(collection(db,'classes'), orderBy('name')));
+    const allClasses = snap.docs.map(d=>({id:d.id,...d.data()}));
+    const selectedCls = allClasses.find(c=>c.id===classId);
+
+    // 1. 선택한 반의 담임 이름과 입력한 이름 일치 확인
+    if (!selectedCls || selectedCls.teacherName?.trim().toLowerCase() !== name.toLowerCase()) {
+      teacherLoginInProgress = false;
+      await signOut(auth);
+      err.style.display='block'; err.textContent='반과 이름이 일치하지 않습니다.'; return;
+    }
+
+    // 2. 비밀번호 검증
+    if (selectedCls.password?.toLowerCase() !== pw.toLowerCase()) {
+      teacherLoginInProgress = false;
+      await signOut(auth);
+      err.style.display='block'; err.textContent='비밀번호가 올바르지 않습니다.'; return;
+    }
+
+    // 3. 같은 담임 이름으로 등록된 반 모두 찾기 (K,N1 묶음 처리)
+    const matched = allClasses.filter(c => c.teacherName?.trim().toLowerCase() === name.toLowerCase());
+    const classIds = matched.map(c=>c.id);
+    teacherSession = { classIds, name };
+    meDoc = { role: 'teacher', classIds, name };
+    teacherLoginInProgress = false;
+    await reload();
+    initApp();
+  } catch(e) {
+    teacherLoginInProgress = false;
+    teacherSession = null;
+    err.style.display='block'; err.textContent=`오류: ${e.code||e.message}`;
+  }
+};
+
+window.doLogout = async () => {
+  if (recordsUnsubscribe) { recordsUnsubscribe(); recordsUnsubscribe = null; }
+  teacherSession = null;
+  await signOut(auth);
+};
+
+__noop(auth, async user => {
+  if (!user) {
+    me=null; meDoc=null; showScreen('loginScreen');
+    populateClassSelect();
+    return;
+  }
+  me = user;
+
+  // 담임 세션 (같은 탭 내에서만 유지, 새로고침 시 재로그인 필요)
+  if (teacherSession) {
+    meDoc = { role: 'teacher', classIds: teacherSession.classIds, name: teacherSession.name };
+    await reload();
+    initApp();
+    return;
+  }
+  if (user.isAnonymous) {
+    // 담임 로그인 진행 중이면 무시 (doTeacherLogin이 직접 처리)
+    if (teacherLoginInProgress) return;
+    // 세션 없는 익명 → 바로 로그아웃
+    teacherSession = null;
+    await signOut(auth); return;
+  }
+
+  // 직원 로그인
+  const snap = await getDoc(doc(db,'users',user.uid));
+  if (!snap.exists()) { showScreen('pendingScreen'); $('pendingUid').textContent=user.uid; return; }
+  meDoc = {id:snap.id,...snap.data()};
+  await reload();
+  initApp();
+});
+
+// 로그인 화면 반 select 채우기 (비인증 상태에서도 필요)
+async function populateClassSelect() {
+  try {
+    const tmpAuth = getAuth(app2);
+    const db2 = getFirestore(app2);
+    await signInAnonymously(tmpAuth);
+    const snap = await getDocs(query(collection(db2,'classes'), orderBy('name')));
+    const clsList = snap.docs.map(d=>({id:d.id,...d.data()}));
+    await signOut(tmpAuth);
+    $('tcCls').innerHTML = `<option value="">반을 선택하세요</option>`
+      + clsList.map(c=>`<option value="${c.id}">${c.name}반</option>`).join('');
+    checkUrlClass();
+  } catch(e) {
+    console.warn('반 목록 로드 실패:', e.code, e.message);
+  }
+}
+
+async function reload() {
+  // QSA: 증명서 화면에 필요한 것만 읽음 (반·학생·발급 이력). 일정·사용자·전입 기록·수능 기록은 읽지 않음
+  const [cs, sts] = await Promise.all([
+    getDocs(query(collection(db,'classes'), orderBy('name'))),
+    getDocs(query(collection(db,'students'), orderBy('classId'))),
+  ]);
+  classes  = cs.docs.map(d=>({id:d.id,...d.data()}));
+  students = sts.docs.map(d=>({id:d.id,...d.data()}));
+  schedules = []; users = []; records = []; suneungRecords = [];
+  try {
+    const cSnap = await getDocs(query(collection(db,'certificates'), orderBy('issuedAt','desc')));
+    certificates = cSnap.docs.map(d=>({id:d.id,...d.data()}));
+  } catch(e) {
+    console.warn('[certificates] 로드 실패:', e.code || e.message);
+    certificates = [];
+  }
+}
+
+// records 실시간 리스너 설정
+let recordsUnsubscribe = null;
+function startRecordsListener() {
+  if (recordsUnsubscribe) recordsUnsubscribe(); // 기존 리스너 해제
+  recordsUnsubscribe = onSnapshot(collection(db,'records'), snap => {
+    snap.docChanges().forEach(change => {
+      const d = {id:change.doc.id,...change.doc.data()};
+      if (change.type === 'added' || change.type === 'modified') {
+        const idx = records.findIndex(r=>r.id===d.id);
+        if (idx>=0) records[idx]=d; else records.push(d);
+      } else if (change.type === 'removed') {
+        records = records.filter(r=>r.id!==d.id);
+      }
+    });
+    // 현재 보이는 화면 자동 갱신
+    if (!meDoc) return;
+    const active = $R.querySelector('.view.active');
+    if (!active) return;
+    const id = active.id;
+    if (id==='vDashboard') renderDashboard();
+    else if (id==='vStudents') renderStudents();
+    else if (id==='vMyClass') renderMyClass();
+    else if (id==='vSuneung') renderSuneung();
+    else if (id==='vMySuneung') renderMySuneung();
+    else if (id==='vVehicleSchedule') renderVehicleSchedule();
+  });
+}
+
+// ── INIT ──
+function initApp() {
+  showScreen('appScreen');
+  $('sbName').textContent = meDoc.name || me.email;
+  $('sbRole').textContent = meDoc.role==='staff'?'담당 직원':'담임 교사';
+  buildNav();
+  updateSortHeaders();
+  startRecordsListener();
+  $R.querySelector('.nav-item')?.click();
+}
+
+function buildNav() {
+  const nav = $('sbNav');
+  if (meDoc.role==='staff') {
+    nav.innerHTML = `
+      <div class="nav-sec">현황</div>
+      <div class="nav-item" onclick="switchTab('vDashboard',this)">현황판</div>
+      <div class="nav-item" onclick="switchTab('vStudents',this)">학생 관리</div>
+      <div class="nav-item" onclick="switchTab('vSuneung',this)">수능 원서접수</div>
+      <div class="nav-sec">일정</div>
+      <div class="nav-item" onclick="switchTab('vSchedule',this)">전입신고 스케줄</div>
+      <div class="nav-item" onclick="switchTab('vVehicleSchedule',this)">수능 원서접수 차량 스케줄</div>
+      <div class="nav-sec">관리</div>
+      <div class="nav-item" onclick="switchTab('vImport',this)">데이터 import</div>
+      <div class="nav-item" onclick="switchTab('vClasses',this)">반 관리</div>
+      <div class="nav-item" onclick="switchTab('vDocsAdmin',this)">서류 관리</div>
+      <div class="nav-item" onclick="switchTab('vCert',this)">증명서 발급</div>
+      <div class="nav-item" onclick="switchTab('vBulkSend',this)">문서 일괄발송</div>`;
+  } else {
+    nav.innerHTML = `
+      <div class="nav-sec">내 반</div>
+      <div class="nav-item" onclick="switchTab('vMyClass',this)">현황 & 학생</div>
+      <div class="nav-item" onclick="switchTab('vMySuneung',this)">수능 원서접수</div>
+      <div class="nav-item" onclick="switchTab('vAllSchedule',this)">전입신고 스케줄</div>
+      <div class="nav-item" onclick="switchTab('vVehicleSchedule',this)">수능 원서접수 차량 스케줄</div>
+      <div class="nav-item" onclick="switchTab('vDocs',this)">전입신고 서류</div>`;
+  }
+}
+
+window.toggleMobileMenu = () => {
+  $R.querySelector('.sidebar')?.classList.toggle('open');
+  $R.querySelector('.mobile-menu-overlay')?.classList.toggle('open');
+};
+
+window.switchTab = (id, el) => {
+  $R.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  $(id)?.classList.add('active');
+  $R.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  el?.classList.add('active');
+  // 모바일에서 메뉴 클릭 시 사이드바 자동 닫힘
+  $R.querySelector('.sidebar')?.classList.remove('open');
+  $R.querySelector('.mobile-menu-overlay')?.classList.remove('open');
+  ({
+    vDashboard:  renderDashboard,
+    vStudents:   renderStudents,
+    vSuneung:    renderSuneung,
+    vMySuneung:  renderMySuneung,
+    vSchedule:   renderSchedule,
+    vVehicleSchedule: renderVehicleSchedule,
+    vImport:     ()=>{},
+    vClasses:    renderClasses,
+    vUsers:      renderUsers,
+    vMyClass:    renderMyClass,
+    vAllSchedule: renderAllSchedule,
+    vDocs:       renderDocs,
+    vDocsAdmin:  renderDocsAdmin,
+    vCert:       renderCert,
+    vBulkSend:   renderBulkSend,
+  })[id]?.();
+};
+
+// ── RENDER: DASHBOARD ──
+function renderDashboard() {
+  const clsList = meDoc.role==='staff' ? classes : classes.filter(c=>c.id===meDoc.classId);
+  if (!clsList.length) { $('sumGrid').innerHTML=`<div class="empty"><div class="ei">🏫</div><p>반을 먼저 추가해 주세요.</p></div>`; return; }
+  $('sumGrid').innerHTML = clsList.map(cls => {
+    const allStus = students.filter(s=>s.classId===cls.id);
+    const stus = allStus.filter(s=>!records.find(r=>r.id===s.id)?.withdrawn); // 퇴소 제외
+    const recs = stus.map(s=>records.find(r=>r.id===s.id)||{});
+    const male = stus.filter(s=>s.gender==='남').length;
+    const total = stus.length;
+    const withdrawn = allStus.length - total;
+    const f  = recs.filter(r=>r.form===2).length;
+    const i2 = recs.filter(r=>r.insurance===2).length;
+    const id = recs.filter(r=>r.idCard===2).length;
+    const ml = recs.filter(r=>r.military===2).length;
+    const teacher = users.find(u=>u.id===cls.teacherUid);
+    const bar = (n,t)=>t?`<div class="sum-bar" style="width:${Math.round(n/t*100)}%"></div>`:`<div class="sum-bar" style="width:0"></div>`;
+    return `<div class="sum-card" onclick="jumpToClass('${cls.id}')">
+      <div class="sum-card-head">
+        <div><div class="sum-cls">${cls.name}반</div><div class="sum-teacher">${teacher?.name||cls.teacherName||'담임 미배정'} · ${total}명${withdrawn?` <span style="opacity:.6;font-size:10px">(퇴소 ${withdrawn})</span>`:''}</div></div>
+      </div>
+      <div class="sum-body">
+        <div class="sum-row"><span class="sum-label">전입신고서</span><div class="sum-bar-wrap">${bar(f,total)}</div><span class="sum-count">${f}/${total}</span></div>
+        <div class="sum-row"><span class="sum-label">건강보험증</span><div class="sum-bar-wrap">${bar(i2,total)}</div><span class="sum-count">${i2}/${total}</span></div>
+        <div class="sum-row"><span class="sum-label">신분증</span><div class="sum-bar-wrap">${bar(id,total)}</div><span class="sum-count">${id}/${total}</span></div>
+        ${male>0?`<div class="sum-row"><span class="sum-label">징병검사</span><div class="sum-bar-wrap">${bar(ml,male)}</div><span class="sum-count">${ml}/${male}</span></div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.jumpToClass = id => {
+  activeClsFilter = id;
+  $R.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const navItem = meDoc.role==='staff'
+    ? [...document.querySelectorAll('.nav-item')].find(n=>n.textContent.includes('학생'))
+    : $R.querySelector('.nav-item');
+  navItem?.classList.add('active');
+  $R.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  $(meDoc.role==='staff'?'vStudents':'vMyClass')?.classList.add('active');
+  meDoc.role==='staff' ? renderStudents() : renderMyClass();
+};
+
+// ── RENDER: STUDENTS (staff) ──
+function renderStudents() {
+  const chips = $('clsChips');
+  chips.innerHTML = `<span class="chip ${!activeClsFilter?'active':''}" onclick="setClsFil(null)">전체</span>`
+    + classes.map(c=>`<span class="chip ${activeClsFilter===c.id?'active':''}" onclick="setClsFil('${c.id}')">${c.name}반</span>`).join('');
+
+  const q = $('stuSearch').value.trim().toLowerCase();
+  let list = activeClsFilter ? students.filter(s=>s.classId===activeClsFilter) : students;
+  if (q) list = list.filter(s=>s.name?.toLowerCase().includes(q)||s.studentId?.includes(q));
+  list = sortStudents(list);
+
+  if (!list.length) {
+    $('stuBody').innerHTML = `<tr><td colspan="11" style="text-align:center;color:var(--t3);padding:30px">학생이 없습니다.</td></tr>`;
+    return;
+  }
+
+  // subClass가 여러 개인 경우 구분선 삽입
+  const subClasses = [...new Set(list.map(s=>s.subClass).filter(Boolean))];
+  const needGroup = subClasses.length > 1;
+
+  if (needGroup) {
+    // subClass 기준으로 그룹핑
+    const groups = {};
+    list.forEach(s => {
+      const key = s.subClass || '기타';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(s);
+    });
+    let rows = '';
+    Object.keys(groups).sort().forEach(key => {
+      rows += `<tr><td colspan="11" style="background:var(--warm1);color:var(--g900);font-weight:700;font-size:15px;padding:8px 14px;border-top:2px solid var(--warm2)">${key}반</td></tr>`;
+      rows += groups[key].map(s=>stuRow(s)).join('');
+    });
+    $('stuBody').innerHTML = rows;
+  } else {
+    $('stuBody').innerHTML = list.map(s=>stuRow(s)).join('');
+  }
+}
+window.setClsFil = id => { activeClsFilter=id; renderStudents(); };
+
+// ── RENDER: MY CLASS (teacher) ──
+function renderMyClass() {
+  const myClassIds = meDoc.classIds || (meDoc.classId ? [meDoc.classId] : []);
+  const myClasses  = classes.filter(c => myClassIds.includes(c.id));
+  $('myClsName').textContent = myClasses.length
+    ? myClasses.map(c=>c.name).join(' · ') + '반'
+    : '담당 반 미배정';
+  if (!myClasses.length) { $('mySchBanner').innerHTML=''; $('myDash').innerHTML=''; $('myStuBody').innerHTML=''; return; }
+
+  // 스케줄 배너
+  const mySchs = schedules.filter(s=>myClassIds.includes(s.classId)).sort((a,b)=>a.date>b.date?1:-1);
+  $('mySchBanner').innerHTML = mySchs.length ? `
+    <div class="card" style="padding:14px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:14px;font-weight:600;color:var(--t2)">전입신고 일정</span>
+      ${mySchs.map(s=>{
+        const cls = classes.find(c=>c.id===s.classId);
+        return `<span style="font-size:15px"><strong>${cls?.name}반</strong> · ${s.round} · ${fmtDate(s.date)} ${schStatusBadge(schStatus(s))}</span>`;
+      }).join('<span style="color:var(--warm2);margin:0 4px">|</span>')}
+    </div>` : '';
+
+  // 반별 통계 + 학생 목록 — subClass(K1,N1 등) 기준으로 그룹핑
+  const q = $('myStuSearch').value.trim().toLowerCase();
+  const allStus = students.filter(s => myClassIds.includes(s.classId));
+
+  // subClass 목록 수집 (없으면 DB 반 이름 사용)
+  const subGroups = {};
+  allStus.forEach(s => {
+    const key = s.subClass || classes.find(c=>c.id===s.classId)?.name || '미분류';
+    if (!subGroups[key]) subGroups[key] = [];
+    subGroups[key].push(s);
+  });
+  const groupKeys = Object.keys(subGroups).sort();
+  const multiGroup = groupKeys.length > 1;
+
+  // 통계 카드
+  let dashHtml = `<div style="display:grid;grid-template-columns:repeat(${Math.min(groupKeys.length,2)},1fr);gap:14px;margin-bottom:4px">`;
+  groupKeys.forEach(key => {
+    const gStus  = subGroups[key];
+    const active = gStus.filter(s=>!records.find(r=>r.id===s.id)?.withdrawn);
+    const recs   = active.map(s=>records.find(r=>r.id===s.id)||{});
+    const total=active.length, male=active.filter(s=>s.gender==='남').length;
+    const withdrawn=gStus.length-total;
+    const f=recs.filter(r=>r.form===2).length, i2=recs.filter(r=>r.insurance===2).length,
+          id=recs.filter(r=>r.idCard===2).length, ml=recs.filter(r=>r.military===2).length;
+    const bar = (label,n,t) => `<div style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px">
+        <span style="color:var(--t2)">${label}</span><span style="font-weight:600;color:var(--g700)">${n}/${t}</span>
+      </div>
+      <div style="height:5px;background:var(--warm2);border-radius:3px">
+        <div style="height:100%;width:${t?Math.round(n/t*100):0}%;background:var(--g500);border-radius:3px"></div>
+      </div></div>`;
+    dashHtml += `<div class="card" style="overflow:hidden">
+      <div style="background:var(--g900);color:#fff;padding:11px 16px;font-size:16px;font-weight:700">
+        ${key}반 <span style="font-size:13px;font-weight:400;opacity:.6;margin-left:4px">${total}명${withdrawn?` · 퇴소 ${withdrawn}명`:''}</span>
+      </div>
+      <div style="padding:14px 16px">
+        ${bar('전입신고서',f,total)}${bar('건강보험증',i2,total)}
+        ${bar('신분증',id,total)}${male?bar('징병검사',ml,male):''}
+      </div></div>`;
+  });
+  dashHtml += '</div>';
+  $('myDash').innerHTML = dashHtml;
+
+  // 학생 목록
+  let tableRows = '';
+  groupKeys.forEach(key => {
+    let list = subGroups[key];
+    if (q) list = list.filter(s=>s.name?.toLowerCase().includes(q)||s.studentId?.includes(q));
+    list = sortStudents(list);
+    if (multiGroup) {
+      tableRows += `<tr><td colspan="11" style="background:var(--warm2) !important;color:var(--g900);font-weight:700;font-size:14px;padding:8px 14px;border-top:2px solid var(--warm2)">${key}반</td></tr>`;
+    }
+    tableRows += list.length
+      ? list.map(s=>stuRow(s,true)).join('')
+      : `<tr><td colspan="11" style="text-align:center;color:var(--t3);padding:16px">학생이 없습니다.</td></tr>`;
+  });
+  $('myStuBody').innerHTML = tableRows || `<tr><td colspan="11" style="text-align:center;color:var(--t3);padding:30px">학생이 없습니다.</td></tr>`;
+}
+
+// ── 정렬 ──
+let sortCol = 'name';
+let sortAsc = true;
+let snSortCol = null, snSortAsc = true;
+let mySnSortCol = null, mySnSortAsc = true;
+
+window.setSortCol = col => {
+  if (sortCol === col) sortAsc = !sortAsc;
+  else { sortCol = col; sortAsc = true; }
+  updateSortHeaders();
+  renderStudents();
+  renderMyClass();
+};
+
+function updateSortHeaders() {
+  const cols = ['studentId','name','gender','round'];
+  cols.forEach(c => {
+    ['sh-'+c, 'msh-'+c].forEach(id => {
+      const el = $(id); if (!el) return;
+      el.textContent = sortCol===c ? (sortAsc ? ' ▲' : ' ▼') : ' ↕';
+      el.style.color = sortCol===c ? 'var(--g500)' : 'var(--t3)';
+    });
+  });
+}
+
+// ── 스케줄 상태 계산 ──
+function schStatus(sch) {
+  if (sch.statusOverride) return sch.statusOverride;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(sch.date); d.setHours(0,0,0,0);
+  const diff = Math.floor((today - d) / 86400000);
+  if (diff < 0)  return '예정';
+  if (diff <= 6) return '진행';
+  return '완료';
+}
+
+function schStatusBadge(status) {
+  const map = { '예정': 'bdg-gray', '진행': 'bdg-gold', '완료': 'bdg-g' };
+  return `<span class="bdg ${map[status]||'bdg-gray'}">${status}</span>`;
+}
+
+// 정렬: 퇴소는 맨 아래, 선택된 컬럼으로 정렬
+function sortStudents(list) {
+  const roundOrder = {'1차':1,'2차':2,'3차':3,'개별완료':4,'':9};
+  return [...list].sort((a, b) => {
+    const aOut = !!records.find(r=>r.id===a.id)?.withdrawn;
+    const bOut = !!records.find(r=>r.id===b.id)?.withdrawn;
+    if (aOut !== bOut) return aOut ? 1 : -1;
+    let cmp = 0;
+    if (sortCol === 'studentId') {
+      cmp = (a.studentId||'').localeCompare(b.studentId||'', 'ko');
+    } else if (sortCol === 'name') {
+      if (a.gender !== b.gender) cmp = a.gender==='남' ? -1 : 1;
+      else cmp = (a.name||'').localeCompare(b.name||'', 'ko');
+    } else if (sortCol === 'gender') {
+      cmp = a.gender === b.gender
+        ? (a.name||'').localeCompare(b.name||'', 'ko')
+        : a.gender==='남' ? -1 : 1;
+    } else if (sortCol === 'round') {
+      const ra = records.find(r=>r.id===a.id)||{};
+      const rb = records.find(r=>r.id===b.id)||{};
+      cmp = (roundOrder[ra.round||'']||9) - (roundOrder[rb.round||'']||9);
+      if (cmp === 0) cmp = (a.name||'').localeCompare(b.name||'', 'ko');
+    }
+    return sortAsc ? cmp : -cmp;
+  });
+}
+
+function miniStat(label, n, t) {
+  const pct = t?Math.round(n/t*100):0;
+  return `<div class="card" style="padding:12px 14px">
+    <div style="font-size:11px;color:var(--t2);margin-bottom:4px">${label}</div>
+    <div style="font-size:20px;font-weight:700;color:var(--g900)">${n}<span style="font-size:13px;font-weight:400;color:var(--t3)">/${t}</span></div>
+    <div style="height:4px;background:var(--warm2);border-radius:3px;margin-top:6px"><div style="height:100%;width:${pct}%;background:var(--g500);border-radius:3px"></div></div>
+  </div>`;
+}
+
+function stuRow(s, isTeacher=false) {
+  const r = records.find(rec=>rec.id===s.id)||{};
+  const cls = classes.find(c=>c.id===s.classId);
+  const isOut = !!r.withdrawn;
+  const dimStyle = isOut ? 'opacity:.4;text-decoration:line-through;' : '';
+  const cb = (field, label) => {
+    const val = r[field] || 0;
+    const cls2 = val===1?'s1':val===2?'s2':'';
+    const icon = val===1?'✓':val===2?'✓✓':'';
+    const dis  = isOut ? 'disabled' : '';
+    return `<td class="center"><button class="doc-toggle ${cls2}" ${dis} onclick="cycleDoc('${s.id}','${field}',this)" title="${label} (${val===0?'미확인':val===1?'담임확인':'완료'})">${icon}</button></td>`;
+  };
+  const colspan = 11;
+  const actions = `<td><div class="tbl-actions">
+    <button class="btn btn-ghost btn-sm" onclick="editStudent('${s.id}')">수정</button>
+    <button class="btn btn-red btn-sm" onclick="delStudent('${s.id}','${s.name}')">삭제</button>
+  </div></td>`;
+  return `<tr style="${isOut?'background:#fafafa;':''}">
+    <td style="${dimStyle}"><span style="font-family:monospace;font-size:12px">${s.studentId||'-'}</span>${(s.subClass||cls?.name)?` <span class="bdg bdg-gray" style="margin-left:4px">${s.subClass||cls?.name}</span>`:''}</td>
+    <td style="${dimStyle}"><strong>${s.name||'-'}</strong>${!isTeacher&&cls?` <span class="bdg bdg-gray" style="margin-left:4px;opacity:.5">${cls.name}</span>`:''} ${isOut?'<span class="bdg bdg-red">퇴소</span>':''}</td>
+    <td style="${dimStyle}">${s.gender||'-'}</td>
+    ${cb('form','전입신고서')}${cb('insurance','건강보험증')}${cb('idCard','신분증')}${cb('military','징병검사')}
+    <td>
+      <select class="round-sel" ${isOut?'disabled':''} onchange="updateRound('${s.id}',this.value)">
+        <option value="" ${!r.round?'selected':''}>-</option>
+        ${['1차','2차','3차','개별완료'].map(v=>`<option value="${v}" ${r.round===v?'selected':''}>${v}</option>`).join('')}
+      </select>
+    </td>
+    <td>
+      <input type="text" value="${r.notes||''}" placeholder="비고" ${isOut?'disabled':''} style="border:none;background:transparent;font-family:'Noto Sans KR',sans-serif;font-size:13px;width:100%;outline:none;${dimStyle}" onblur="updateNotes('${s.id}',this.value)" onkeydown="if(event.key==='Enter')this.blur()">
+      ${r.updatedBy?`<div style="font-size:10px;color:var(--t3);margin-top:1px">${r.updatedBy}</div>`:''}
+    </td>
+    <td class="center"><input type="checkbox" class="doc-cb" ${isOut?'checked':''} onchange="toggleWithdrawn('${s.id}',this.checked)" title="퇴소" style="accent-color:var(--red)"></td>
+    ${actions}
+  </tr>`;
+}
+
+// ── DOC TOGGLE (3단계) ──
+window.cycleDoc = async (studentId, field, btn) => {
+  const by  = meDoc.name || '직원';
+  const cur = records.find(r=>r.id===studentId)?.[field] || 0;
+  const next = cur >= 2 ? 0 : cur + 1;
+
+  // 즉시 UI 업데이트 (낙관적)
+  btn.className = `doc-toggle${next===1?' s1':next===2?' s2':''}`;
+  btn.textContent = next===1?'✓':next===2?'✓✓':'';
+  btn.title = `${btn.title.split(' (')[0]} (${next===0?'미확인':next===1?'담임확인':'완료'})`;
+
+  try {
+    await setDoc(doc(db,'records',studentId), {[field]:next, updatedBy:by, updatedAt:serverTimestamp()}, {merge:true});
+    const idx = records.findIndex(r=>r.id===studentId);
+    if(idx>=0) { records[idx][field]=next; records[idx].updatedBy=by; }
+    else records.push({id:studentId,[field]:next,updatedBy:by});
+  } catch(e) {
+    // 실패 시 원래대로 복구
+    btn.className = `doc-toggle${cur===1?' s1':cur===2?' s2':''}`;
+    btn.textContent = cur===1?'✓':cur===2?'✓✓':'';
+    toast('저장 실패',true);
+  }
+};
+
+window.updateRound = async (studentId, val) => {
+  const by = meDoc.name || '직원';
+  await setDoc(doc(db,'records',studentId),{round:val,updatedBy:by,updatedAt:serverTimestamp()},{merge:true});
+  const r=records.find(r=>r.id===studentId);
+  if(r) { r.round=val; r.updatedBy=by; } else records.push({id:studentId,round:val,updatedBy:by});
+};
+
+window.toggleWithdrawn = async (studentId, val) => {
+  const by = meDoc.name || '직원';
+  await setDoc(doc(db,'records',studentId),{withdrawn:val,updatedBy:by,updatedAt:serverTimestamp()},{merge:true});
+  const r=records.find(r=>r.id===studentId);
+  if(r) { r.withdrawn=val; r.updatedBy=by; } else records.push({id:studentId,withdrawn:val,updatedBy:by});
+  // 활성 뷰에 따라 refresh
+  const activeId = $R.querySelector('.view.active')?.id;
+  if (activeId==='vStudents') renderStudents();
+  else if (activeId==='vMyClass') renderMyClass();
+  else if (activeId==='vSuneung') renderSuneung();
+  else if (activeId==='vMySuneung') renderMySuneung();
+  else meDoc.role==='staff' ? renderStudents() : renderMyClass();
+  toast(val ? '퇴소 처리되었습니다.' : '퇴소 취소되었습니다.');
+};
+
+window.updateNotes = async (studentId, val) => {
+  const by = meDoc.name || '직원';
+  await setDoc(doc(db,'records',studentId),{notes:val,updatedBy:by,updatedAt:serverTimestamp()},{merge:true});
+  const r=records.find(r=>r.id===studentId);
+  if(r) { r.notes=val; r.updatedBy=by; } else records.push({id:studentId,notes:val,updatedBy:by});
+};
+
+// ── 수능 원서접수 ──
+
+// 2027학년도 수능 원서접수 차량 목록 (엑셀 '일정차량' 시트 기준)
+// 연도가 바뀌면 이 배열만 교체하면 됨
+const VEHICLES = [
+  '①_24일(월)_2교시_1호차',
+  '①_24일(월)_2교시_2호차',
+  '②_24일(월)_3교시_3호차',
+  '③_24일(월)_4교시_1호차',
+  '③_24일(월)_4교시_2호차',
+  '④_24일(월)_5교시_1호차',
+  '④_24일(월)_5교시_3호차',
+  '⑤_24일(월)_6교시_2호차',
+  '⑥_24일(월)_7교시_1호차',
+  '⑥_24일(월)_7교시_3호차',
+  '⑦_24일(월)_8교시_2호차',
+  '⑧_27일(목)_2교시_1호차',
+  '⑧_27일(목)_2교시_2호차',
+  '⑨_27일(목)_4교시_1호차',
+  '⑨_27일(목)_4교시_2호차',
+];
+
+// 2027학년도 차량 스케줄 (엑셀 '일정차량' 시트 기준)
+const VEHICLE_SCHEDULE = [
+  { date: '8월 24일(월)', period: '2교시', time: '08:30', vehicle: '①_24일(월)_2교시_1호차', capacity: 38 },
+  { date: '8월 24일(월)', period: '2교시', time: '08:30', vehicle: '①_24일(월)_2교시_2호차', capacity: 38 },
+  { date: '8월 24일(월)', period: '3교시', time: '09:30', vehicle: '②_24일(월)_3교시_3호차', capacity: 38 },
+  { date: '8월 24일(월)', period: '4교시', time: '10:30', vehicle: '③_24일(월)_4교시_1호차', capacity: 38 },
+  { date: '8월 24일(월)', period: '4교시', time: '10:30', vehicle: '③_24일(월)_4교시_2호차', capacity: 38 },
+  { date: '8월 24일(월)', period: '5교시', time: '12:30', vehicle: '④_24일(월)_5교시_1호차', capacity: 38 },
+  { date: '8월 24일(월)', period: '5교시', time: '12:30', vehicle: '④_24일(월)_5교시_3호차', capacity: 37 },
+  { date: '8월 24일(월)', period: '6교시', time: '13:30', vehicle: '⑤_24일(월)_6교시_2호차', capacity: 38 },
+  { date: '8월 24일(월)', period: '7교시', time: '14:30', vehicle: '⑥_24일(월)_7교시_1호차', capacity: 38 },
+  { date: '8월 24일(월)', period: '7교시', time: '14:30', vehicle: '⑥_24일(월)_7교시_3호차', capacity: 37 },
+  { date: '8월 24일(월)', period: '8교시', time: '15:30', vehicle: '⑦_24일(월)_8교시_2호차', capacity: 38 },
+  { date: '8월 27일(목)', period: '2교시', time: '08:30', vehicle: '⑧_27일(목)_2교시_1호차', capacity: 37 },
+  { date: '8월 27일(목)', period: '2교시', time: '08:30', vehicle: '⑧_27일(목)_2교시_2호차', capacity: 38 },
+  { date: '8월 27일(목)', period: '4교시', time: '10:30', vehicle: '⑨_27일(목)_4교시_1호차', capacity: 37 },
+  { date: '8월 27일(목)', period: '4교시', time: '10:30', vehicle: '⑨_27일(목)_4교시_2호차', capacity: 38 },
+];
+
+// 차량 스케줄 렌더링 (읽기 전용, 실제 배정 인원도 함께 표시)
+function renderVehicleSchedule() {
+  // 담임이면 본인 반 학생만 집계
+  const isTeacher = meDoc?.role === 'teacher';
+  const myClassIds = isTeacher ? (meDoc.classIds || (meDoc.classId ? [meDoc.classId] : [])) : null;
+  const myClassNames = isTeacher ? classes.filter(c => myClassIds.includes(c.id)).map(c => c.name).join('/') : '';
+  const scopeStudents = isTeacher
+    ? students.filter(s => myClassIds.includes(s.classId))
+    : students;
+  const scopeStudentIds = new Set(scopeStudents.map(s => s.id));
+
+  // 실제 배정된 인원 수 집계 (퇴소생 제외 + 담임이면 본인 반만)
+  const assignedCount = {};
+  VEHICLES.forEach(v => assignedCount[v] = 0);
+  suneungRecords.forEach(sn => {
+    if (!sn.vehicle) return;
+    if (!scopeStudentIds.has(sn.id)) return;
+    const r = records.find(r=>r.id===sn.id);
+    if (r?.withdrawn) return;
+    if (assignedCount[sn.vehicle] !== undefined) assignedCount[sn.vehicle]++;
+  });
+
+  // 날짜별로 그룹핑
+  const byDate = {};
+  VEHICLE_SCHEDULE.forEach(v => {
+    if (!byDate[v.date]) byDate[v.date] = [];
+    byDate[v.date].push(v);
+  });
+
+  const totalCap = VEHICLE_SCHEDULE.reduce((s,v)=>s+v.capacity, 0);
+  const totalAssigned = Object.values(assignedCount).reduce((s,c)=>s+c, 0);
+  const scopeLabel = isTeacher ? `${myClassNames}반 배정 현황` : '전체 배정 현황';
+  const clsLabel = isTeacher ? `${myClassNames}반` : '';
+
+  // 숫자 클릭 → 명단 모달 트리거 (담임만; 관리자는 너무 많아서 비활성)
+  const clickable = (n, kind, extra='') => {
+    if (!isTeacher || n === 0) return `<strong style="${extra}">${n}명</strong>`;
+    return `<strong style="${extra};cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-decoration-color:var(--warm2)" 
+      onclick="showSnStudentList('${kind}',${JSON.stringify(extra).length})" 
+      onclick='showSnStudentList("${kind}","${(kind==="vehicle" ? '__V__' : '')}")'>${n}명</strong>`;
+  };
+
+  let html = '';
+  if (isTeacher) {
+    const myTotal = scopeStudents.filter(s => !records.find(r=>r.id===s.id)?.withdrawn).length;
+    const myAssigned = suneungRecords.filter(sn => sn.vehicle && scopeStudentIds.has(sn.id) && !records.find(r=>r.id===sn.id)?.withdrawn).length;
+    const myUnassigned = myTotal - myAssigned;
+    html += `<div class="card" style="padding:16px 20px;margin-bottom:12px;background:var(--warm1)">
+      <div style="font-size:14px;color:var(--t2);margin-bottom:8px">${clsLabel} 학생 통계 <span style="font-size:12px;color:var(--t3)">(숫자 클릭 시 명단)</span></div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap">
+        <div><span style="color:var(--t3);font-size:13px">전체 재원생</span> <strong style="font-size:18px;color:var(--g900);margin-left:6px;cursor:pointer;text-decoration:underline;text-decoration-style:dotted" onclick="showSnStudentList('all')">${myTotal}명</strong></div>
+        <div><span style="color:var(--t3);font-size:13px">차량 배정</span> <strong style="font-size:18px;color:var(--g700);margin-left:6px;cursor:pointer;text-decoration:underline;text-decoration-style:dotted" onclick="showSnStudentList('assigned')">${myAssigned}명</strong></div>
+        <div><span style="color:var(--t3);font-size:13px">미배정</span> <strong style="font-size:18px;color:#E74C3C;margin-left:6px;cursor:pointer;text-decoration:underline;text-decoration-style:dotted" onclick="showSnStudentList('unassigned')">${myUnassigned}명</strong></div>
+      </div>
+    </div>`;
+  }
+  html += `<div class="card" style="padding:16px 20px;margin-bottom:16px;background:var(--warm1);display:flex;justify-content:space-between;align-items:center">
+    <div style="font-size:15px;font-weight:700;color:var(--g900)">${scopeLabel}</div>
+    <div><strong style="font-size:20px;color:var(--g900)">${totalAssigned}명</strong> <span style="font-size:14px;color:var(--t3)">/ ${totalCap}명 정원</span></div>
+  </div>`;
+
+  Object.entries(byDate).forEach(([date, list]) => {
+    const dateAssigned = list.reduce((s,v)=>s+(assignedCount[v.vehicle]||0), 0);
+    const dateCap = list.reduce((s,v)=>s+v.capacity, 0);
+    html += `<div style="margin-top:20px">
+      <div style="font-size:15px;font-weight:700;color:var(--g900);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+        <span>${date}</span>
+        <span style="font-size:13px;font-weight:500;color:var(--t3)">${dateAssigned}명${isTeacher?` (${clsLabel})`:''} / ${dateCap}명${isTeacher?' 전체 정원':''}</span>
+      </div>
+      <div class="card"><div class="tbl-wrap"><table class="tbl">
+        <thead><tr>
+          <th>교시</th><th>출발시간</th><th>차량</th>
+          <th class="center">${isTeacher?clsLabel:'배정'}</th><th class="center">정원</th>${isTeacher?'':'<th class="center">여유</th>'}
+        </tr></thead>
+        <tbody>`;
+    let prevPeriod = '';
+    list.forEach(v => {
+      const cnt = assignedCount[v.vehicle] || 0;
+      const remaining = v.capacity - cnt;
+      const remainingStyle = remaining < 0 ? 'color:#E74C3C' : remaining === 0 ? 'color:var(--g700)' : 'color:var(--t3)';
+      const periodCell = v.period !== prevPeriod
+        ? `<td><strong>${v.period}</strong></td><td><span class="bdg bdg-gold">${v.time}</span></td>`
+        : `<td></td><td></td>`;
+      prevPeriod = v.period;
+      const cntColor = isTeacher ? (cnt>0 ? 'var(--g900)' : 'var(--t3)') : 'var(--g900)';
+      // 담임 뷰 + cnt>0: 클릭 가능 (해당 차량의 담임반 학생 명단)
+      const cntCell = (isTeacher && cnt > 0)
+        ? `<strong style="color:${cntColor};cursor:pointer;text-decoration:underline;text-decoration-style:dotted" onclick="showSnStudentList('vehicle','${v.vehicle}')">${cnt}명</strong>`
+        : `<strong style="color:${cntColor}">${cnt}명</strong>`;
+      html += `<tr>
+        ${periodCell}
+        <td>${v.vehicle}</td>
+        <td class="center">${cntCell}</td>
+        <td class="center">${v.capacity}명</td>
+        ${isTeacher ? '' : `<td class="center" style="${remainingStyle}"><strong>${remaining >= 0 ? '+' : ''}${remaining}명</strong></td>`}
+      </tr>`;
+    });
+    html += `</tbody></table></div></div></div>`;
+  });
+
+  $('vehicleScheduleContent').innerHTML = html;
+}
+
+// 차량 스케줄에서 숫자 클릭 시 학생 명단 모달
+// kind: 'all' | 'assigned' | 'unassigned' | 'vehicle'
+// vehicleName: kind=='vehicle'인 경우 차량명
+window.showSnStudentList = (kind, vehicleName='') => {
+  const isTeacher = meDoc?.role === 'teacher';
+  if (!isTeacher) return;
+  const myClassIds = meDoc.classIds || (meDoc.classId ? [meDoc.classId] : []);
+  let list = students.filter(s => myClassIds.includes(s.classId));
+  list = list.filter(s => !records.find(r=>r.id===s.id)?.withdrawn);
+  let title = '학생 명단';
+  if (kind === 'assigned') {
+    list = list.filter(s => (suneungRecords.find(x=>x.id===s.id)?.vehicle));
+    title = '차량 배정 학생';
+  } else if (kind === 'unassigned') {
+    list = list.filter(s => !(suneungRecords.find(x=>x.id===s.id)?.vehicle));
+    title = '차량 미배정 학생';
+  } else if (kind === 'vehicle') {
+    list = list.filter(s => (suneungRecords.find(x=>x.id===s.id)?.vehicle) === vehicleName);
+    title = vehicleName;
+  } else {
+    title = '전체 재원생';
+  }
+  list.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+
+  $('snListTitle').textContent = `${title} (${list.length}명)`;
+  const rows = list.map(s => {
+    const cls = classes.find(c=>c.id===s.classId);
+    const sn = suneungRecords.find(x=>x.id===s.id) || {};
+    const veh = sn.vehicle ? `<span class="bdg bdg-gray" style="font-size:11px;margin-left:6px">${sn.vehicle}</span>` : '';
+    return `<div style="padding:8px 10px;border-bottom:1px solid var(--warm2);display:flex;justify-content:space-between;align-items:center">
+      <div><strong>${s.name||'-'}</strong> <span style="color:var(--t3);font-size:12px">${s.studentId||''} · ${cls?cls.name:''}반</span></div>
+      <div>${(kind !== 'vehicle') ? veh : ''}</div>
+    </div>`;
+  }).join('');
+  $('snListBody').innerHTML = list.length ? rows : '<div style="padding:24px;text-align:center;color:var(--t3)">해당 학생이 없습니다.</div>';
+  openOverlay('snListOverlay');
+};
+
+// 전입여부 자동 판정 (전입신고서✓✓ + 신분증✓✓, 또는 회차=개별완료)
+function isTransferComplete(studentId) {
+  const r = records.find(r=>r.id===studentId) || {};
+  return (r.form===2 && r.idCard===2) || r.round==='개별완료';
+}
+
+// 수능 원서접수 2단계 토글 (미체크 ↔ 완료) - 기존 값 1도 완료로 취급
+window.cycleSnDoc = async (studentId, field, btn) => {
+  const by = meDoc.name || '직원';
+  const cur = suneungRecords.find(r=>r.id===studentId)?.[field] || 0;
+  const next = cur >= 1 ? 0 : 2;  // 체크된 상태(1 또는 2) → 미체크, 미체크 → 완료
+
+  // 낙관적 UI 업데이트
+  btn.className = `doc-toggle${next===2?' s2':''}`;
+  btn.textContent = next===2?'✓✓':'';
+
+  try {
+    await setDoc(doc(db,'suneungRecords',studentId), {[field]:next, updatedBy:by, updatedAt:serverTimestamp()}, {merge:true});
+    const idx = suneungRecords.findIndex(r=>r.id===studentId);
+    if(idx>=0) { suneungRecords[idx][field]=next; suneungRecords[idx].updatedBy=by; }
+    else suneungRecords.push({id:studentId, [field]:next, updatedBy:by});
+    // 온라인 토글 시 온라인X 활성/비활성 재렌더
+    if (field === 'online') {
+      const activeId = $R.querySelector('.view.active')?.id;
+      if (activeId === 'vSuneung') renderSuneung();
+      else if (activeId === 'vMySuneung') renderMySuneung();
+    }
+  } catch(e) {
+    btn.className = `doc-toggle${cur>=1?' s2':''}`;
+    btn.textContent = cur>=1?'✓✓':'';
+    toast('저장 실패',true);
+  }
+};
+
+// 수능 원서접수 비고 저장
+window.updateSnNotes = async (studentId, val) => {
+  const by = meDoc.name || '직원';
+  await setDoc(doc(db,'suneungRecords',studentId), {notes:val, updatedBy:by, updatedAt:serverTimestamp()}, {merge:true});
+  const r=suneungRecords.find(r=>r.id===studentId);
+  if(r) { r.notes=val; r.updatedBy=by; } else suneungRecords.push({id:studentId, notes:val, updatedBy:by});
+};
+
+// 수능 원서접수 차량 배정 저장
+window.updateSnVehicle = async (studentId, val) => {
+  const by = meDoc.name || '직원';
+  await setDoc(doc(db,'suneungRecords',studentId), {vehicle:val, updatedBy:by, updatedAt:serverTimestamp()}, {merge:true});
+  const r=suneungRecords.find(r=>r.id===studentId);
+  if(r) { r.vehicle=val; r.updatedBy=by; } else suneungRecords.push({id:studentId, vehicle:val, updatedBy:by});
+  // 출발시간 셀 즉시 갱신
+  const activeId = $R.querySelector('.view.active')?.id;
+  if (activeId === 'vSuneung') renderSuneung();
+  else if (activeId === 'vMySuneung') renderMySuneung();
+};
+
+// 차량 배정 일괄 import (콘솔에서 window.__importVehicles(mappings) 로 호출)
+// mappings: [{ studentId: '5435', name: '김백준', vehicle: '⑥_24일(월)_7교시_3호차' }, ...]
+window.__importVehicles = async (mappings) => {
+  if (!Array.isArray(mappings) || !mappings.length) {
+    console.error('❌ mappings 배열이 비어있습니다.');
+    return;
+  }
+  console.log(`%c[차량 일괄 배정] 시작 - 총 ${mappings.length}건`, 'color:#00B2BE;font-weight:bold;font-size:14px');
+  const by = meDoc.name || '직원';
+  const notFound = [], errors = [];
+  let ok = 0;
+  const CHUNK = 10;
+  for (let i = 0; i < mappings.length; i += CHUNK) {
+    const batch = mappings.slice(i, i + CHUNK);
+    await Promise.all(batch.map(async m => {
+      const stu = students.find(s => String(s.studentId) === String(m.studentId));
+      if (!stu) { notFound.push(m); return; }
+      try {
+        await setDoc(doc(db,'suneungRecords',stu.id), {vehicle:m.vehicle, updatedBy:by, updatedAt:serverTimestamp()}, {merge:true});
+        const r = suneungRecords.find(r => r.id === stu.id);
+        if (r) r.vehicle = m.vehicle;
+        else suneungRecords.push({id: stu.id, vehicle: m.vehicle});
+        ok++;
+      } catch (e) {
+        errors.push({...m, error: e.message});
+      }
+    }));
+    console.log(`  진행: ${Math.min(i + CHUNK, mappings.length)} / ${mappings.length} (성공 ${ok}, 학생없음 ${notFound.length}, 에러 ${errors.length})`);
+  }
+  console.log(`%c[완료]`, 'color:#00B2BE;font-weight:bold;font-size:14px');
+  console.log(`  ✅ 성공: ${ok}건`);
+  console.log(`  ⚠️ 학생 없음: ${notFound.length}건`);
+  console.log(`  ❌ 에러: ${errors.length}건`);
+  if (notFound.length) { console.log('\n학생 없음 목록:'); console.table(notFound.map(m=>({학번:m.studentId, 이름:m.name, 차량:m.vehicle}))); }
+  if (errors.length) { console.log('\n에러 목록:'); console.table(errors); }
+  const activeId = $R.querySelector('.view.active')?.id;
+  if (activeId === 'vSuneung') renderSuneung();
+  else if (activeId === 'vMySuneung') renderMySuneung();
+  return { ok, notFound: notFound.length, errors: errors.length };
+};
+
+// 수능 원서접수 행 렌더링
+function suneungRow(s, isTeacher=false) {
+  const r = records.find(r=>r.id===s.id) || {}; // 퇴소/전입 상태 참조
+  const sn = suneungRecords.find(r=>r.id===s.id) || {};
+  const isOut = !!r.withdrawn;
+  const dimStyle = isOut ? 'opacity:.35;text-decoration:line-through' : '';
+  const cls = classes.find(c=>c.id===s.classId);
+  const transferOK = isTransferComplete(s.id);
+  const transferCell = transferOK
+    ? `<span class="doc-toggle s2" title="전입 완료" style="cursor:default">✓✓</span>`
+    : `<span class="doc-toggle" title="전입 미완료" style="cursor:default">−</span>`;
+  // 2단계 토글 (미체크 ↔ 완료) — 기존 값 1(구 담임확인)도 완료로 표시
+  const cb = (field, label, disabled=false) => {
+    const val = sn[field] || 0;
+    const checked = val >= 1;
+    const cls2 = checked?'s2':'';
+    const icon = checked?'✓✓':'';
+    const state = checked?'완료':'미체크';
+    if (disabled) {
+      return `<span class="doc-toggle" title="온라인 접수 완료 - 오프라인 서류 불필요" style="opacity:.3;cursor:not-allowed">−</span>`;
+    }
+    return `<button class="doc-toggle ${cls2}" onclick="cycleSnDoc('${s.id}','${field}',this)" title="${label} (${state})">${icon}</button>`;
+  };
+  const isOnline = (sn.online || 0) === 2;
+  const noteInput = `<input type="text" class="notes-input" value="${(sn.notes||'').replace(/"/g,'&quot;')}" 
+    onchange="updateSnNotes('${s.id}',this.value)" placeholder="특이사항"
+    style="width:100%;min-width:120px;padding:5px 8px;border:1.5px solid var(--warm2);border-radius:6px;font-size:13px;font-family:'Noto Sans KR',sans-serif">`;
+  const curVehicle = sn.vehicle || '';
+  const vehicleOptions = `<option value="">미배정</option>` +
+    VEHICLES.map(v => `<option value="${v}" ${v===curVehicle?'selected':''}>${v}</option>`).join('');
+  const vehicleSelect = `<select onchange="updateSnVehicle('${s.id}',this.value)"
+    style="width:100%;min-width:140px;padding:5px 6px;border:1.5px solid var(--warm2);border-radius:6px;font-size:13px;font-family:'Noto Sans KR',sans-serif;background:#fff">${vehicleOptions}</select>`;
+  const timeEntry = curVehicle ? VEHICLE_SCHEDULE.find(v => v.vehicle === curVehicle) : null;
+  const timeCell = timeEntry ? `<span class="bdg bdg-gold">${timeEntry.time}</span>` : '<span style="color:var(--t3)">−</span>';
+  const withdrawBtn = `<button class="btn ${isOut?'btn-red':'btn-ghost'} btn-sm" onclick="toggleWithdrawn('${s.id}',${!isOut})">${isOut?'취소':'퇴소'}</button>`;
+  const clsCol = isTeacher ? '' : `<td style="${dimStyle}">${cls?cls.name:'-'}</td>`;
+  return `<tr>
+    <td style="${dimStyle}">${s.studentId||'-'}</td>
+    <td style="${dimStyle}"><strong>${s.name||'-'}</strong> ${isOut?'<span class="bdg bdg-red">퇴소</span>':''}</td>
+    <td style="${dimStyle}">${s.gender||'-'}</td>
+    ${clsCol}
+    <td class="center">${transferCell}</td>
+    <td class="center">${cb('online','온라인')}</td>
+    <td class="center">${cb('charter','초본')}</td>
+    <td class="center">${cb('snIdCard','신분증')}</td>
+    <td class="center">${cb('qualDoc','학력증빙서류')}</td>
+    <td class="center" title="응시원서, 사진, 수수료">${cb('offlineDocs','온라인X (응시원서, 사진, 수수료)', isOnline)}</td>
+    <td>${vehicleSelect}</td>
+    <td class="center">${timeCell}</td>
+    <td style="max-width:180px">${noteInput}</td>
+    <td class="center">${withdrawBtn}</td>
+  </tr>`;
+}
+
+// 관리자용 수능 원서접수 렌더링
+function renderSuneung() {
+  if (!classes.length) {
+    $('snBody').innerHTML = `<tr><td colspan="13" style="text-align:center;color:var(--t3);padding:30px">반을 먼저 추가해 주세요.</td></tr>`;
+    return;
+  }
+  // 반 필터 chips
+  const chips = $('snClsChips');
+  if (chips) {
+    chips.innerHTML = `<span class="chip ${!activeClsFilter?'active':''}" onclick="snSetCls(null)">전체</span>` +
+      classes.map(c=>`<span class="chip ${activeClsFilter===c.id?'active':''}" onclick="snSetCls('${c.id}')">${c.name}</span>`).join('');
+  }
+  const q = ($('snSearch')?.value || '').trim().toLowerCase();
+  let list = students.slice();
+  // 퇴소생 제외
+  list = list.filter(s => !records.find(r=>r.id===s.id)?.withdrawn);
+  if (activeClsFilter) list = list.filter(s=>s.classId===activeClsFilter);
+  if (q) list = list.filter(s=>(s.name||'').toLowerCase().includes(q) || (s.studentId||'').toLowerCase().includes(q));
+  // 정렬: 사용자 지정 컬럼 있으면 그 컬럼, 없으면 기본(전입완료 우선 → 반 → 이름)
+  sortSuneungList(list, snSortCol, snSortAsc);
+  // 헤더 정렬 인디케이터 갱신
+  updateSortIndicators('snTable', snSortCol, snSortAsc);
+  if (!list.length) {
+    $('snBody').innerHTML = `<tr><td colspan="14" style="text-align:center;color:var(--t3);padding:30px">학생이 없습니다.</td></tr>`;
+    return;
+  }
+  $('snBody').innerHTML = list.map(s=>suneungRow(s,false)).join('');
+}
+
+window.snSetCls = (id) => { activeClsFilter = id; renderSuneung(); };
+window.snSort = (col) => {
+  if (snSortCol === col) snSortAsc = !snSortAsc;
+  else { snSortCol = col; snSortAsc = true; }
+  renderSuneung();
+};
+
+// 담임용 수능 원서접수 렌더링
+function renderMySuneung() {
+  const myClassIds = meDoc.classIds || (meDoc.classId ? [meDoc.classId] : []);
+  const q = ($('mySnSearch')?.value || '').trim().toLowerCase();
+  let list = students.filter(s=>myClassIds.includes(s.classId));
+  // 퇴소생 제외
+  list = list.filter(s => !records.find(r=>r.id===s.id)?.withdrawn);
+  if (q) list = list.filter(s=>(s.name||'').toLowerCase().includes(q) || (s.studentId||'').toLowerCase().includes(q));
+  sortSuneungList(list, mySnSortCol, mySnSortAsc);
+  updateSortIndicators('mySnTable', mySnSortCol, mySnSortAsc, 'mycol');
+  if (!list.length) {
+    $('mySnBody').innerHTML = `<tr><td colspan="13" style="text-align:center;color:var(--t3);padding:30px">학생이 없습니다.</td></tr>`;
+    return;
+  }
+  $('mySnBody').innerHTML = list.map(s=>suneungRow(s,true)).join('');
+}
+
+window.mySnSort = (col) => {
+  if (mySnSortCol === col) mySnSortAsc = !mySnSortAsc;
+  else { mySnSortCol = col; mySnSortAsc = true; }
+  renderMySuneung();
+};
+
+// 수능 원서접수 정렬 헬퍼 (관리자·담임 공통)
+function sortSuneungList(list, sortCol, asc) {
+  if (!sortCol) {
+    // 기본 정렬: 전입완료 우선 → 반 → 이름
+    list.sort((a,b) => {
+      const ta = isTransferComplete(a.id) ? 0 : 1;
+      const tb = isTransferComplete(b.id) ? 0 : 1;
+      if (ta !== tb) return ta - tb;
+      const ca = classes.find(c=>c.id===a.classId)?.name || '';
+      const cb = classes.find(c=>c.id===b.classId)?.name || '';
+      if (ca !== cb) return ca.localeCompare(cb);
+      return (a.name||'').localeCompare(b.name||'');
+    });
+    return;
+  }
+  const dir = asc ? 1 : -1;
+  list.sort((a,b) => {
+    const va = getSortValue(a, sortCol);
+    const vb = getSortValue(b, sortCol);
+    if (va < vb) return -1 * dir;
+    if (va > vb) return 1 * dir;
+    return (a.name||'').localeCompare(b.name||'');
+  });
+}
+
+function getSortValue(s, col) {
+  const sn = suneungRecords.find(r=>r.id===s.id) || {};
+  switch (col) {
+    case 'studentId': return s.studentId || '';
+    case 'name': return s.name || '';
+    case 'gender': return s.gender || '';
+    case 'className': return classes.find(c=>c.id===s.classId)?.name || '';
+    case 'transfer': return isTransferComplete(s.id) ? 1 : 0;
+    case 'online':
+    case 'charter':
+    case 'snIdCard':
+    case 'qualDoc':
+    case 'offlineDocs': return (sn[col] || 0) >= 1 ? 1 : 0;
+    case 'vehicle': return sn.vehicle || '\uFFFF';  // 미배정은 마지막으로 정렬
+    case 'time': {
+      const v = sn.vehicle; if (!v) return '';
+      const e = VEHICLE_SCHEDULE.find(x => x.vehicle === v);
+      return e ? e.time : '';
+    }
+    default: return '';
+  }
+}
+
+function updateSortIndicators(tableId, sortCol, asc, attr='col') {
+  const table = $R.getElementById(tableId);
+  if (!table) return;
+  table.querySelectorAll('.sort-ind').forEach(el => {
+    const c = el.dataset[attr];
+    if (c === sortCol) {
+      el.textContent = asc ? '▲' : '▼';
+      el.classList.add('active');
+    } else {
+      el.textContent = '⇅';
+      el.classList.remove('active');
+    }
+  });
+}
+
+// 수능 원서접수 엑셀 내보내기 (현재 화면의 필터/정렬 상태 그대로)
+window.exportSuneungExcel = () => {
+  const activeId = $R.querySelector('.view.active')?.id;
+  const isTeacherView = activeId === 'vMySuneung';
+  let list = students.slice();
+  // 담임 뷰: 자기 반만
+  if (isTeacherView) {
+    const myClassIds = meDoc.classIds || (meDoc.classId ? [meDoc.classId] : []);
+    list = list.filter(s => myClassIds.includes(s.classId));
+  } else {
+    // 관리자: 반 필터 적용
+    if (activeClsFilter) list = list.filter(s => s.classId === activeClsFilter);
+  }
+  // 퇴소생 제외 (화면과 동일)
+  list = list.filter(s => !records.find(r=>r.id===s.id)?.withdrawn);
+  // 검색어 적용
+  const searchId = isTeacherView ? 'mySnSearch' : 'snSearch';
+  const q = ($(searchId)?.value || '').trim().toLowerCase();
+  if (q) list = list.filter(s=>(s.name||'').toLowerCase().includes(q) || (s.studentId||'').toLowerCase().includes(q));
+  // 현재 정렬 상태 적용
+  const sortCol = isTeacherView ? mySnSortCol : snSortCol;
+  const sortAsc = isTeacherView ? mySnSortAsc : snSortAsc;
+  sortSuneungList(list, sortCol, sortAsc);
+
+  const headers = isTeacherView
+    ? ['학번','성명','성별','전입여부','온라인','초본','신분증','학력증빙서류','온라인X','차량','출발시간','비고','퇴소']
+    : ['학번','성명','성별','반','전입여부','온라인','초본','신분증','학력증빙서류','온라인X','차량','출발시간','비고','퇴소'];
+  const rows = [headers];
+  list.forEach(s => {
+    const r = records.find(r=>r.id===s.id) || {};
+    const sn = suneungRecords.find(x=>x.id===s.id) || {};
+    const cls = classes.find(c=>c.id===s.classId);
+    const timeEntry = sn.vehicle ? VEHICLE_SCHEDULE.find(v=>v.vehicle===sn.vehicle) : null;
+    const chk = v => ((v||0) >= 1 ? 'O' : '');
+    const rowData = [
+      s.studentId || '',
+      s.name || '',
+      s.gender || '',
+    ];
+    if (!isTeacherView) rowData.push(cls ? cls.name : '');
+    rowData.push(
+      isTransferComplete(s.id) ? 'O' : '',
+      chk(sn.online),
+      chk(sn.charter),
+      chk(sn.snIdCard),
+      chk(sn.qualDoc),
+      chk(sn.offlineDocs),
+      sn.vehicle || '',
+      timeEntry ? timeEntry.time : '',
+      sn.notes || '',
+      r.withdrawn ? 'O' : ''
+    );
+    rows.push(rowData);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = isTeacherView
+    ? [{wch:8},{wch:10},{wch:6},{wch:8},{wch:8},{wch:6},{wch:8},{wch:12},{wch:8},{wch:28},{wch:10},{wch:20},{wch:6}]
+    : [{wch:8},{wch:10},{wch:6},{wch:8},{wch:8},{wch:8},{wch:6},{wch:8},{wch:12},{wch:8},{wch:28},{wch:10},{wch:20},{wch:6}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '수능원서접수');
+  const today = new Date();
+  const fname = `QUETTA_수능원서접수_${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}.xlsx`;
+  XLSX.writeFile(wb, fname);
+  toast(`엑셀 파일 다운로드 (${list.length}건)`);
+};
+
+// 담임용 스케줄 (전체 스케줄, 날짜별 표만)
+function renderAllSchedule() {
+  const grouped = {};
+  schedules.forEach(s => {
+    if (!s.date) return;
+    if (!grouped[s.date]) grouped[s.date] = [];
+    grouped[s.date].push(s);
+  });
+  const sortedDates = Object.keys(grouped).sort((a,b) => a.localeCompare(b));
+  if (!sortedDates.length) {
+    $('teacherSchDateBody').innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--t3);padding:20px">등록된 일정이 없습니다.</td></tr>`;
+    return;
+  }
+  const today = new Date().toISOString().slice(0,10);
+  $('teacherSchDateBody').innerHTML = sortedDates.map(date => {
+    const items = grouped[date].sort((a,b)=>(a.round||'').localeCompare(b.round||''));
+    // 각 반 chip 카운트: 이 스케줄 회차 + 퇴소X + 더블체크(form✓✓ + idCard✓✓)
+    const clsNames = items.map(s => {
+      const cls = classes.find(c=>c.id===s.classId);
+      if (!cls) return '';
+      const cnt = students.filter(st => {
+        if (st.classId !== cls.id) return false;
+        const r = records.find(r=>r.id===st.id)||{};
+        if (r.withdrawn) return false;
+        const studentRound = r.round || '1차';
+        if (studentRound !== s.round) return false;
+        return r.form===2 && r.idCard===2;
+      }).length;
+      return `<span class="bdg bdg-gray" style="margin-right:4px">${cls.name} <span style="font-weight:400;opacity:.7">${cnt}명</span></span>`;
+    }).join('');
+    // 행 합계 = chip 카운트의 총합 (같은 조건)
+    const rowCount = items.reduce((sum, s) => {
+      const cls = classes.find(c=>c.id===s.classId);
+      if (!cls) return sum;
+      return sum + students.filter(st => {
+        if (st.classId !== cls.id) return false;
+        const r = records.find(r=>r.id===st.id)||{};
+        if (r.withdrawn) return false;
+        const studentRound = r.round || '1차';
+        if (studentRound !== s.round) return false;
+        return r.form===2 && r.idCard===2;
+      }).length;
+    }, 0);
+    const displayTotal = `<strong style="color:var(--g700)">${rowCount}명</strong>`;
+    const rounds = [...new Set(items.map(s=>s.round))].join(', ');
+    const st = schStatus(items[0]);
+    return `<tr>
+      <td><strong>${fmtDate(date)}</strong></td>
+      <td>${clsNames}</td>
+      <td><span class="bdg bdg-gold">${rounds}</span></td>
+      <td>${displayTotal}</td>
+      <td>${schStatusBadge(st)}</td>
+    </tr>`;
+  }).join('');
+}
+let autoGroups = []; // 편성 결과: [{date, classes:[{cls,count}]}]
+
+window.openAutoSchedule = () => {
+  $('autoStartDate').value = '';
+  $('autoResult').style.display = 'none';
+  $('autoSaveBtn').style.display = 'none';
+  autoGroups = [];
+  openOverlay('autoSchOverlay');
+};
+
+window.runAutoSchedule = () => {
+  const startDate = $('autoStartDate').value;
+  const round     = $('autoRound').value;
+  const days      = [...document.querySelectorAll('.auto-day:checked')].map(el=>+el.value);
+  if (!startDate) return toast('시작일을 선택해 주세요.', true);
+  if (!days.length) return toast('진행 요일을 선택해 주세요.', true);
+
+  // 조편성: teacherName 기준으로 묶인 반 그룹 생성
+  const teacherGroups = {};
+  classes.forEach(c => {
+    const key = c.teacherName || c.id;
+    if (!teacherGroups[key]) teacherGroups[key] = { cls: [], category: c.category||'', count: 0 };
+    teacherGroups[key].cls.push(c);
+    teacherGroups[key].count += students.filter(s=>s.classId===c.id&&!records.find(r=>r.id===s.id)?.withdrawn).length;
+    // 카테고리는 첫 번째 반 기준
+    if (!teacherGroups[key].category) teacherGroups[key].category = c.category||'';
+  });
+
+  const groups = Object.values(teacherGroups);
+  const catA = groups.filter(g=>g.category==='A');
+  const catB = groups.filter(g=>g.category==='B');
+  const catC = groups.filter(g=>g.category==='C');
+  const rest = groups.filter(g=>!['A','B','C'].includes(g.category));
+
+  // A or B + C 매칭, 120명 제한
+  const slots = [];
+  const usedC = new Set();
+
+  const match = (senior) => {
+    let slot = { groups: [senior], total: senior.count };
+    const available = catC.filter(g=>!usedC.has(g));
+    for (const c of available) {
+      if (slot.total + c.count <= 120) {
+        slot.groups.push(c);
+        slot.total += c.count;
+        usedC.add(c);
+        break;
+      }
+    }
+    slots.push(slot);
+  };
+
+  [...catA, ...catB].forEach(g => match(g));
+  // 매칭 안 된 C 처리
+  catC.filter(g=>!usedC.has(g)).forEach(g => slots.push({groups:[g], total:g.count}));
+  // 미분류 처리
+  rest.forEach(g => slots.push({groups:[g], total:g.count}));
+
+  // 날짜 배정
+  const getNextDate = (from, dayNums) => {
+    const d = new Date(from);
+    d.setDate(d.getDate()+1);
+    for (let i=0; i<14; i++) {
+      if (dayNums.includes(d.getDay())) return d.toISOString().slice(0,10);
+      d.setDate(d.getDate()+1);
+    }
+    return null;
+  };
+
+  let curDate = startDate;
+  autoGroups = slots.map((slot, idx) => {
+    if (idx > 0) curDate = getNextDate(curDate, days) || curDate;
+    return { date: curDate, round, groups: slot.groups, total: slot.total };
+  });
+
+  // 결과 렌더
+  $('autoResultBody').innerHTML = autoGroups.map((g, i) => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--cream);border-radius:8px;margin-bottom:8px">
+      <input type="date" value="${g.date}" id="auto-date-${i}" style="padding:6px 10px;border:1.5px solid var(--warm2);border-radius:6px;font-family:'Noto Sans KR',sans-serif;font-size:14px" onchange="autoGroups[${i}].date=this.value">
+      <div style="flex:1">
+        ${g.groups.map(gr=>`<span class="bdg bdg-gray" style="margin-right:4px">${gr.cls.map(c=>c.name).join('·')}반</span>`).join('')}
+        <span class="bdg ${g.groups.some(gr=>gr.category==='A')?'bdg-g':g.groups.some(gr=>gr.category==='B')?'bdg-gold':'bdg-red'}">${[...new Set(g.groups.map(gr=>gr.category||'?'))].join('+')}</span>
+      </div>
+      <span style="font-size:13px;color:var(--t2);white-space:nowrap">${g.total}명</span>
+    </div>`).join('');
+
+  $('autoResult').style.display = 'block';
+  $('autoSaveBtn').style.display = 'inline-flex';
+};
+
+window.saveAutoSchedule = async () => {
+  if (!autoGroups.length) return;
+  const btn = $('autoSaveBtn');
+  btn.disabled = true; btn.textContent = '저장 중…';
+  try {
+    const ops = [];
+    autoGroups.forEach((g, i) => {
+      const date = $(`auto-date-${i}`)?.value || g.date;
+      g.groups.forEach(gr => {
+        gr.cls.forEach(c => {
+          const existing = schedules.find(s=>s.classId===c.id&&s.round===g.round);
+          const data = { classId:c.id, round:g.round, date, notes:'', updatedAt:serverTimestamp() };
+          if (existing) ops.push(updateDoc(doc(db,'schedules',existing.id), data));
+          else ops.push(addDoc(collection(db,'schedules'), {...data, createdAt:serverTimestamp()}));
+        });
+      });
+    });
+    await Promise.all(ops);
+    toast(`${ops.length}개 반 스케줄 저장 완료 ✅`);
+    closeOverlay('autoSchOverlay');
+    await reload(); renderSchedule();
+  } catch(e) { toast('저장 실패: '+e.message, true); }
+  btn.disabled = false; btn.textContent = '스케줄 저장';
+};
+function renderSchedule() {
+  if (!classes.length) { $('schGrid').innerHTML=`<div class="empty"><div class="ei">📅</div><p>반을 먼저 추가해 주세요.</p></div>`; $('schDateBody').innerHTML=''; return; }
+  $('schGrid').innerHTML = classes.map(cls => {
+    const rounds = schedules.filter(s=>s.classId===cls.id).sort((a,b)=>a.date>b.date?1:-1);
+    return `<div class="sch-card">
+      <div class="sch-head"><div class="sch-cls">${cls.name}반</div><button class="btn btn-gold btn-sm" onclick="openSchModal('${cls.id}')">+ 회차 추가</button></div>
+      ${rounds.length ? `<div class="sch-rounds">${rounds.map(s=>{
+        const st = schStatus(s);
+        return `<div class="sch-round-row" style="flex-direction:column;align-items:flex-start;gap:7px">
+          <div style="display:flex;align-items:center;gap:10px;width:100%">
+            <span class="sch-round-label">${s.round}</span>
+            <span class="sch-round-date">${fmtDate(s.date)}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <select class="round-sel" onchange="overrideSchStatus('${s.id}',this.value)" title="상태 수동 변경">
+              ${['예정','진행','완료'].map(v=>`<option value="${v}" ${(s.statusOverride||st)===v?'selected':''}>${v}</option>`).join('')}
+            </select>
+            <button class="btn btn-ghost btn-sm" onclick="editSch('${s.id}')">수정</button>
+            <button class="btn btn-red btn-sm" onclick="delSch('${s.id}')">삭제</button>
+          </div>
+        </div>`;
+      }).join('')}</div>`
+      : `<div class="sch-empty">등록된 일정이 없습니다.</div>`}
+    </div>`;
+  }).join('');
+
+  // 날짜별 표
+  const grouped = {};
+  schedules.forEach(s => {
+    if (!s.date) return;
+    if (!grouped[s.date]) grouped[s.date] = [];
+    grouped[s.date].push(s);
+  });
+  const sortedDates = Object.keys(grouped).sort((a,b) => a.localeCompare(b));
+  if (!sortedDates.length) {
+    $('schDateBody').innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--t3);padding:20px">등록된 일정이 없습니다.</td></tr>`;
+    return;
+  }
+  let sumCount = 0;
+  const rowsHtml = sortedDates.map(date => {
+    const items = grouped[date].sort((a,b)=>(a.round||'').localeCompare(b.round||''));
+    // 각 반 chip 카운트: 이 스케줄 회차 + 퇴소X + 더블체크(form✓✓ + idCard✓✓)
+    const clsNames = items.map(s => {
+      const cls = classes.find(c=>c.id===s.classId);
+      if (!cls) return '';
+      const cnt = students.filter(st => {
+        if (st.classId !== cls.id) return false;
+        const r = records.find(r=>r.id===st.id)||{};
+        if (r.withdrawn) return false;
+        const studentRound = r.round || '1차';
+        if (studentRound !== s.round) return false;
+        return r.form===2 && r.idCard===2;
+      }).length;
+      return `<span class="bdg bdg-gray" style="margin-right:4px">${cls.name} <span style="font-weight:400;opacity:.7">${cnt}명</span></span>`;
+    }).join('');
+    // 행 합계 = chip 카운트의 총합 (같은 조건: 회차 매칭 + 퇴소X + 더블체크)
+    const rowCount = items.reduce((sum, s) => {
+      const cls = classes.find(c=>c.id===s.classId);
+      if (!cls) return sum;
+      return sum + students.filter(st => {
+        if (st.classId !== cls.id) return false;
+        const r = records.find(r=>r.id===st.id)||{};
+        if (r.withdrawn) return false;
+        const studentRound = r.round || '1차';
+        if (studentRound !== s.round) return false;
+        return r.form===2 && r.idCard===2;
+      }).length;
+    }, 0);
+    sumCount += rowCount;
+    const rounds = [...new Set(items.map(s=>s.round))].join(', ');
+    const st = schStatus(items[0]);
+    return `<tr>
+      <td><strong>${fmtDate(date)}</strong></td>
+      <td>${clsNames}</td>
+      <td><span class="bdg bdg-gold">${rounds}</span></td>
+      <td><strong style="color:var(--g700)">${rowCount}명</strong></td>
+      <td>${schStatusBadge(st)}</td>
+    </tr>`;
+  }).join('');
+  // 개별완료 학생 (별도 표기용, 합계에는 미포함) — 개별완료 자체가 완료 표시이므로 더블체크 조건 미적용
+  const indivDone = students.filter(st => {
+    const r = records.find(r=>r.id===st.id)||{};
+    return !r.withdrawn && r.round === '개별완료';
+  }).length;
+  const footerCell = `<strong style="color:var(--g900);font-size:15px">${sumCount}명</strong>${indivDone>0?` <span style="font-size:12px;color:var(--t3);margin-left:8px">(개별완료 <strong style="color:var(--g700)">${indivDone}명</strong>)</span>`:''}`;
+  const footerRow = `<tr style="background:var(--warm1);border-top:2px solid var(--warm2)">
+      <td style="font-weight:800;color:var(--g900)">합계</td>
+      <td></td>
+      <td></td>
+      <td>${footerCell}</td>
+      <td></td>
+    </tr>`;
+  $('schDateBody').innerHTML = rowsHtml + footerRow;
+}
+
+window.overrideSchStatus = async (id, val) => {
+  await updateDoc(doc(db,'schedules',id), { statusOverride: val, updatedAt: serverTimestamp() });
+  const s = schedules.find(s=>s.id===id);
+  if(s) s.statusOverride = val;
+  renderSchedule();
+  toast(`상태가 "${val}"(으)로 변경되었습니다.`);
+};
+
+// ── RENDER: CLASSES ──
+function renderClasses() {
+  if (!classes.length) { $('clsList').innerHTML=`<div class="empty"><div class="ei">🏫</div><p>반이 없습니다.</p></div>`; return; }
+  $('clsList').innerHTML=`<div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>반</th><th>담임</th><th>조편성</th><th>비밀번호</th><th>학생 수</th><th>스케줄</th><th>담임 링크</th><th></th></tr></thead>
+    <tbody>${classes.map(c=>{
+      const cnt=students.filter(s=>s.classId===c.id&&!records.find(r=>r.id===s.id)?.withdrawn).length;
+      const link=`${location.origin}${location.pathname}?class=${encodeURIComponent(c.name)}`;
+      const mySchs=schedules.filter(s=>s.classId===c.id).sort((a,b)=>a.date>b.date?1:-1);
+      const schInfo = mySchs.length
+        ? mySchs.map(s=>`<span style="margin-right:6px">${s.round} ${schStatusBadge(schStatus(s))}</span>`).join('')
+        : '<span class="bdg bdg-gray">미등록</span>';
+      const catColor = c.category==='A'?'bdg-g':c.category==='B'?'bdg-gold':'bdg-red';
+      return `<tr>
+        <td><strong>${c.name}반</strong></td>
+        <td>${c.teacherName||'<span style="color:var(--t3)">미설정</span>'}</td>
+        <td>
+          <select class="round-sel" onchange="updateClassCategory('${c.id}',this.value)">
+            <option value="" ${!c.category?'selected':''}>-</option>
+            ${['A','B','C'].map(v=>`<option value="${v}" ${c.category===v?'selected':''}>${v}</option>`).join('')}
+          </select>
+        </td>
+        <td><span style="font-family:monospace;font-size:12px;color:var(--t2)">${c.password||'미설정'}</span></td>
+        <td>${cnt}명</td>
+        <td>${schInfo}</td>
+        <td><button class="btn btn-ghost btn-sm" onclick="copyLink('${link}','${c.name}')">🔗 링크 복사</button></td>
+        <td><div class="tbl-actions">
+          <button class="btn btn-ghost btn-sm" onclick="editCls('${c.id}')">수정</button>
+          <button class="btn btn-red btn-sm" onclick="delCls('${c.id}','${c.name}')">삭제</button>
+        </div></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+}
+
+// ── RENDER: USERS ──
+function renderUsers() {
+  if (!users.length) { $('usrList').innerHTML=`<div class="empty"><div class="ei">👤</div><p>사용자가 없습니다.</p></div>`; return; }
+  $('usrList').innerHTML=`<div class="tbl-wrap"><table class="tbl">
+    <thead><tr><th>이름</th><th>역할</th><th>담당 반</th><th></th></tr></thead>
+    <tbody>${users.map(u=>{
+      const cls=classes.find(c=>c.id===u.classId);
+      return `<tr>
+        <td><strong>${u.name||'-'}</strong></td>
+        <td>${u.role==='staff'?'<span class="bdg bdg-g">직원</span>':'<span class="bdg bdg-gold">담임</span>'}</td>
+        <td>${cls?cls.name+'반':'-'}</td>
+        <td><div class="tbl-actions">
+          <button class="btn btn-ghost btn-sm" onclick="editUsr('${u.id}')">수정</button>
+          ${u.id!==me.uid?`<button class="btn btn-red btn-sm" onclick="delUsr('${u.id}','${u.name}')">삭제</button>`:''}
+        </div></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+}
+
+// ── STUDENT CRUD ──
+// 반 선택 변경 시 세부반(subClass) 옵션 업데이트
+window.onStuClassChange = (selectedSub) => {
+  const cid = $('stuClass').value;
+  const cls = classes.find(c=>c.id===cid);
+  const grp = $('stuSubClassGrp');
+  const sel = $('stuSubClass');
+  if (!cls || !cls.name.includes(',')) {
+    grp.style.display = 'none';
+    sel.innerHTML = '';
+    return;
+  }
+  const subs = expandClassName(cls.name); // ["O1","M1"]
+  sel.innerHTML = subs.map(s=>`<option value="${s}">${s}반</option>`).join('');
+  if (selectedSub && subs.includes(selectedSub)) sel.value = selectedSub;
+  grp.style.display = 'block';
+};
+
+window.openStuModal = () => {
+  $('stuModalTitle').textContent='학생 추가'; $('stuEditId').value='';
+  $('stuNo').value=$('stuName').value=$('stuNotes').value='';
+  $('stuBirthday').value='';
+  $('stuGender').value='남'; $('stuRound').value='';
+  ['cbForm','cbIns','cbId','cbMil'].forEach(id=>$(id).checked=false);
+
+  // 담임이면 자기 반만, 직원이면 전체
+  const myClassIds = meDoc.classIds || (meDoc.classId ? [meDoc.classId] : []);
+  const clsList = meDoc.role==='teacher'
+    ? classes.filter(c => myClassIds.includes(c.id))
+    : classes;
+  $('stuClass').innerHTML = clsList.map(c=>`<option value="${c.id}">${c.name}반</option>`).join('');
+
+  if(meDoc.role==='teacher' && myClassIds.length===1) $('stuClass').value=myClassIds[0];
+  else if(activeClsFilter) $('stuClass').value=activeClsFilter;
+  onStuClassChange(); // 세부반 UI 초기화
+  openOverlay('stuOverlay');
+};
+
+window.editStudent = id => {
+  const s=students.find(s=>s.id===id); if(!s) return;
+  const r=records.find(r=>r.id===id)||{};
+  $('stuModalTitle').textContent='학생 수정'; $('stuEditId').value=id;
+  $('stuClass').innerHTML=classes.map(c=>`<option value="${c.id}" ${c.id===s.classId?'selected':''}>${c.name}반</option>`).join('');
+  $('stuNo').value=s.studentId||''; $('stuName').value=s.name||'';
+  $('stuBirthday').value=s.birthday||'';
+  $('stuGender').value=s.gender||'남'; $('stuNotes').value=r.notes||''; $('stuRound').value=r.round||'';
+  $('cbForm').checked=!!r.form; $('cbIns').checked=!!r.insurance;
+  $('cbId').checked=!!r.idCard; $('cbMil').checked=!!r.military;
+  onStuClassChange(s.subClass); // 세부반 복원
+  openOverlay('stuOverlay');
+};
+
+window.saveStudent = async () => {
+  const eid=$('stuEditId').value;
+  const classId=$('stuClass').value, studentId=$('stuNo').value.trim(),
+        name=$('stuName').value.trim(), gender=$('stuGender').value,
+        birthday=$('stuBirthday').value.trim();
+  if(!name||!classId) return toast('반과 이름은 필수입니다.',true);
+
+  // 묶인 반(콤마 포함)이면 세부반 필수
+  const cls = classes.find(c=>c.id===classId);
+  const isCombined = cls && cls.name.includes(',');
+  const subClass = isCombined ? $('stuSubClass').value : '';
+  if (isCombined && !subClass) return toast('세부반을 선택해 주세요.',true);
+
+  const sData={classId,studentId,name,gender,subClass,birthday,updatedAt:serverTimestamp()};
+  const rData={form:$('cbForm').checked,insurance:$('cbIns').checked,
+               idCard:$('cbId').checked,military:$('cbMil').checked,
+               round:$('stuRound').value,notes:$('stuNotes').value,updatedAt:serverTimestamp()};
+  try {
+    let sid=eid;
+    if(eid) { await updateDoc(doc(db,'students',eid),sData); }
+    else    { const ref=await addDoc(collection(db,'students'),{...sData,createdAt:serverTimestamp()}); sid=ref.id; }
+    await setDoc(doc(db,'records',sid),{...rData,studentId:sid,classId},{merge:true});
+    toast(eid?'수정되었습니다.':'추가되었습니다.');
+    closeOverlay('stuOverlay'); await reload();
+    meDoc.role==='staff'?renderStudents():renderMyClass();
+  } catch(e){ toast('저장 실패: '+e.message,true); }
+};
+
+window.delStudent = async (id,name) => {
+  if(!confirm(`${name} 학생을 삭제할까요?`)) return;
+  await deleteDoc(doc(db,'students',id));
+  await deleteDoc(doc(db,'records',id));
+  try { await deleteDoc(doc(db,'suneungRecords',id)); } catch(e) {} // 수능 기록 있으면 함께 삭제
+  suneungRecords = suneungRecords.filter(r=>r.id!==id);
+  toast('삭제되었습니다.'); await reload();
+  meDoc.role==='staff'?renderStudents():renderMyClass();
+};
+
+// ── SCHEDULE CRUD ──
+window.openSchModal = (preClsId='') => {
+  $('schModalTitle').textContent='일정 추가'; $('schEditId').value='';
+  $('schDate').value=''; $('schNotes').value=''; $('schRound').value='1차';
+  // 편집 셀렉트 숨김, 다중 체크박스 표시
+  $('schClassSingleGrp').style.display = 'none';
+  $('schClassMultiGrp').style.display = '';
+  $('schClassList').innerHTML = classes.map(c =>
+    `<label style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:#fff;border:1px solid var(--warm2);border-radius:6px;cursor:pointer;font-size:14px">
+      <input type="checkbox" class="sch-cls-cb" value="${c.id}" ${c.id===preClsId?'checked':''} style="cursor:pointer">
+      <span>${c.name}반</span>
+    </label>`
+  ).join('');
+  openOverlay('schOverlay');
+};
+
+window.toggleSchClsAll = () => {
+  const cbs = $R.querySelectorAll('.sch-cls-cb');
+  const allChecked = [...cbs].every(cb => cb.checked);
+  cbs.forEach(cb => cb.checked = !allChecked);
+};
+
+window.editSch = id => {
+  const s=schedules.find(s=>s.id===id); if(!s) return;
+  $('schModalTitle').textContent='일정 수정'; $('schEditId').value=id;
+  // 편집 셀렉트만 표시, 다중 체크박스 숨김
+  $('schClassMultiGrp').style.display = 'none';
+  $('schClassSingleGrp').style.display = '';
+  $('schClass').innerHTML=classes.map(c=>`<option value="${c.id}" ${c.id===s.classId?'selected':''}>${c.name}반</option>`).join('');
+  $('schRound').value=s.round||'1차'; $('schDate').value=s.date||''; $('schNotes').value=s.notes||'';
+  openOverlay('schOverlay');
+};
+
+// ── 임시 진단 함수 (콘솔에서 __debugCount() 호출) — 문제 해결 후 제거 예정 ──
+window.__debugCount = () => {
+  // ① 더블체크 완료 총수
+  const doubleChecked = students.filter(st => {
+    const r = records.find(r => r.id === st.id) || {};
+    return !r.withdrawn && r.form === 2 && r.idCard === 2;
+  });
+  console.log('%c① 더블체크 완료(퇴소X) 총수:', 'color:#00B2BE;font-weight:bold', doubleChecked.length);
+
+  // ② 반별 스케줄 회차 맵
+  const scheduleRounds = {};
+  schedules.forEach(s => {
+    if (!scheduleRounds[s.classId]) scheduleRounds[s.classId] = new Set();
+    scheduleRounds[s.classId].add(s.round);
+  });
+
+  // ③ 카테고리별 분류
+  const cat = { row1st:0, row2nd:0, row3rd:0, indiv:0, missing:[] };
+  doubleChecked.forEach(st => {
+    const r = records.find(r => r.id === st.id) || {};
+    const cls = classes.find(c => c.id === st.classId);
+    if (r.round === '개별완료') { cat.indiv++; return; }
+    const studentRound = r.round || '1차';
+    const clsRounds = scheduleRounds[st.classId] || new Set();
+    if (!clsRounds.has(studentRound)) {
+      cat.missing.push({
+        이름: st.name, 학번: st.studentId,
+        반: cls ? cls.name : '(반 없음)',
+        classId: st.classId,
+        회차: r.round === undefined ? '(undefined)' : r.round === '' ? '(빈문자열)' : r.round,
+        회차_raw: JSON.stringify(r.round)
+      });
+      return;
+    }
+    if (studentRound === '1차') cat.row1st++;
+    else if (studentRound === '2차') cat.row2nd++;
+    else if (studentRound === '3차') cat.row3rd++;
+    else cat.missing.push({이름:st.name, 학번:st.studentId, 반:cls?cls.name:'?', 회차:r.round, 회차_raw:JSON.stringify(r.round)});
+  });
+
+  console.log('%c② 카테고리별 분포:', 'color:#00B2BE;font-weight:bold');
+  console.log('  1차 행 카운트:', cat.row1st);
+  console.log('  2차 행 카운트:', cat.row2nd);
+  console.log('  3차 행 카운트:', cat.row3rd);
+  console.log('  개별완료:', cat.indiv);
+  console.log('  누락:', cat.missing.length);
+  console.log('  ── 합계:', cat.row1st + cat.row2nd + cat.row3rd + cat.indiv + cat.missing.length);
+
+  if (cat.missing.length) {
+    console.log('%c③ 누락 학생 명단:', 'color:#E74C3C;font-weight:bold');
+    console.table(cat.missing);
+  }
+
+  // ④ r.round 값 종류
+  const roundValues = {};
+  records.filter(r => !r.withdrawn).forEach(r => {
+    const key = JSON.stringify(r.round);
+    roundValues[key] = (roundValues[key] || 0) + 1;
+  });
+  console.log('%c④ r.round 값 분포 (전체 재원생 기록):', 'color:#00B2BE;font-weight:bold');
+  console.table(roundValues);
+
+  return cat;
+};
+
+window.saveSchedule = async () => {
+  const eid=$('schEditId').value,
+        round=$('schRound').value.trim(), date=$('schDate').value, notes=$('schNotes').value;
+  if(!round) return toast('회차를 입력해 주세요.',true);
+  if(!date) return toast('날짜를 선택해 주세요.',true);
+
+  try {
+    // 편집 모드: 기존 문서 하나만 수정
+    if (eid) {
+      const classId = $('schClass').value;
+      if (!classId) return toast('반을 선택해 주세요.',true);
+      await updateDoc(doc(db,'schedules',eid), {classId,round,date,notes,updatedAt:serverTimestamp()});
+      toast('수정되었습니다.');
+      closeOverlay('schOverlay'); await reload(); renderSchedule();
+      return;
+    }
+
+    // 추가 모드: 선택된 반들에 대해 일괄 생성 (중복 스킵)
+    const selectedIds = [...document.querySelectorAll('.sch-cls-cb:checked')].map(cb => cb.value);
+    if (!selectedIds.length) return toast('반을 최소 1개 이상 선택해 주세요.',true);
+
+    const toAdd = [], dup = [];
+    for (const cid of selectedIds) {
+      const exists = schedules.some(s => s.classId===cid && s.round===round && s.date===date);
+      if (exists) dup.push(cid); else toAdd.push(cid);
+    }
+    if (!toAdd.length) return toast(`선택한 반 모두 이미 존재하는 스케줄입니다 (${dup.length}건 스킵)`,true);
+    if (dup.length && !confirm(`${toAdd.length}건 추가, ${dup.length}건은 이미 존재 (스킵). 진행할까요?`)) return;
+
+    const ops = toAdd.map(cid => addDoc(collection(db,'schedules'), {
+      classId:cid, round, date, notes,
+      createdAt:serverTimestamp(), updatedAt:serverTimestamp()
+    }));
+    await Promise.all(ops);
+    toast(`${toAdd.length}건 추가${dup.length?` (${dup.length}건 스킵)`:''}`);
+    closeOverlay('schOverlay'); await reload(); renderSchedule();
+  } catch(e) { toast('저장 실패: '+e.message,true); }
+};
+
+window.delSch = async id => {
+  if(!confirm('이 일정을 삭제할까요?')) return;
+  await deleteDoc(doc(db,'schedules',id)); toast('삭제되었습니다.'); await reload(); renderSchedule();
+};
+
+// ── CLASS CRUD ──
+window.openClsModal = () => {
+  $('clsModalTitle').textContent='반 추가'; $('clsEditId').value='';
+  $('clsName').value=$('clsTeacherName').value='';
+  $('clsCategory').value='';
+  $('clsPw').value='';
+  $('clsName').oninput = () => {
+    const n = $('clsName').value.trim();
+    $('clsPw').value = n ? `${n.replace(/,/g,'')}quetta` : '';
+  };
+  openOverlay('clsOverlay');
+};
+
+window.editCls = id => {
+  const c=classes.find(c=>c.id===id); if(!c) return;
+  $('clsModalTitle').textContent='반 수정'; $('clsEditId').value=id;
+  $('clsName').value=c.name; $('clsTeacherName').value=c.teacherName||'';
+  $('clsPw').value=c.password||`${c.name}quetta`;
+  $('clsCategory').value=c.category||'';
+  $('clsName').oninput = null;
+  openOverlay('clsOverlay');
+};
+
+// 전체 반 비밀번호 일괄 설정
+window.bulkSetPasswords = async () => {
+  if (!classes.length) return toast('반이 없습니다.', true);
+  if (!confirm(`전체 ${classes.length}개 반의 비밀번호를 "반이름+quetta" 규칙으로 일괄 설정할까요?\n예: A1 → A1quetta`)) return;
+  try {
+    await Promise.all(classes.map(c =>
+      updateDoc(doc(db,'classes',c.id), { password: `${c.name}quetta`.replace(/,/g, '') })
+    ));
+    toast(`${classes.length}개 반 비밀번호 설정 완료 ✅`);
+    await reload(); renderClasses();
+  } catch(e) { toast('오류가 발생했습니다.', true); }
+};
+
+window.saveClass = async () => {
+  const eid=$('clsEditId').value, name=$('clsName').value.trim(),
+        teacherName=$('clsTeacherName').value.trim(), password=$('clsPw').value.trim(),
+        category=$('clsCategory').value;
+  if(!name) return toast('반 이름을 입력해 주세요.',true);
+  const data={name, teacherName, password: password.replace(/,/g, ''), category};
+  try {
+    if(eid) await updateDoc(doc(db,'classes',eid),data);
+    else    await addDoc(collection(db,'classes'),{...data,createdAt:serverTimestamp()});
+    toast('저장되었습니다.'); closeOverlay('clsOverlay'); await reload(); renderClasses();
+  } catch(e){ toast('저장 실패',true); }
+};
+
+window.updateClassCategory = async (id, val) => {
+  await updateDoc(doc(db,'classes',id), { category: val });
+  const c = classes.find(c=>c.id===id);
+  if(c) c.category = val;
+  toast('저장되었습니다.');
+};
+window.copyLink = (link, name) => {
+  navigator.clipboard.writeText(link).then(()=>toast(`${name}반 링크가 복사되었습니다. ✅`));
+};
+
+window.delCls = async (id,name) => {
+  if(!confirm(`${name}반을 삭제할까요?`)) return;
+  await deleteDoc(doc(db,'classes',id)); toast('삭제되었습니다.'); await reload(); renderClasses();
+};
+
+// ── USER CRUD ──
+window.openUsrModal = () => {
+  $('usrModalTitle').textContent='계정 등록'; $('usrEditId').value='';
+  $('usrEmail').value=$('usrPw').value=$('usrName').value='';
+  $('usrNewFields').style.display='block'; $('usrRole').value='teacher'; $('usrClsGrp').style.display='block';
+  $('usrCls').innerHTML=`<option value="">선택 안 함</option>`+classes.map(c=>`<option value="${c.id}">${c.name}반</option>`).join('');
+  openOverlay('usrOverlay');
+};
+
+window.editUsr = id => {
+  const u=users.find(u=>u.id===id); if(!u) return;
+  $('usrModalTitle').textContent='계정 수정'; $('usrEditId').value=id;
+  $('usrNewFields').style.display='none'; $('usrName').value=u.name||''; $('usrRole').value=u.role||'staff';
+  $('usrCls').innerHTML=`<option value="">선택 안 함</option>`+classes.map(c=>`<option value="${c.id}" ${c.id===u.classId?'selected':''}>${c.name}반</option>`).join('');
+  $('usrClsGrp').style.display=u.role==='teacher'?'block':'none';
+  openOverlay('usrOverlay');
+};
+
+window.saveUser = async () => {
+  const eid=$('usrEditId').value, name=$('usrName').value.trim(),
+        role=$('usrRole').value, classId=$('usrCls').value;
+  if(!name) return toast('이름을 입력해 주세요.',true);
+  const btn=$('usrSaveBtn'); btn.disabled=true; btn.textContent='저장 중…';
+  try {
+    let uid=eid;
+    if(!eid) {
+      const email=$('usrEmail').value.trim(), pw=$('usrPw').value;
+      if(!email||pw.length<8) { toast('이메일과 비밀번호(8자+)를 확인해 주세요.',true); btn.disabled=false; btn.textContent='저장'; return; }
+      const cred=await createUserWithEmailAndPassword(auth2,email,pw);
+      uid=cred.user.uid; await auth2.signOut();
+    }
+    await setDoc(doc(db,'users',uid),{name,role,classId:classId||null,updatedAt:serverTimestamp()},{merge:true});
+    toast(eid?'수정되었습니다.':'계정이 생성되었습니다. ✅');
+    closeOverlay('usrOverlay'); await reload(); renderUsers();
+  } catch(e){
+    toast(e.code==='auth/email-already-in-use'?'이미 사용 중인 이메일입니다.':'오류: '+e.message,true);
+  }
+  btn.disabled=false; btn.textContent='저장';
+};
+
+window.delUsr = async (id,name) => {
+  if(!confirm(`${name} 계정을 삭제할까요?`)) return;
+  await deleteDoc(doc(db,'users',id)); toast('삭제되었습니다.'); await reload(); renderUsers();
+};
+
+// CSV 반 이름 → DB 반 찾기 (매핑 우선, 없으면 자동 규칙, 없으면 직접 매칭)
+function expandClassName(name) {
+  // "K,N1" → ["K1", "N1"], "O,M2" → ["O2", "M2"]
+  if (!name.includes(',')) return [name];
+  const num     = name.match(/\d+$/)?.[0] || '';
+  const letters = name.replace(/,/g, '').replace(/\d+$/, '');
+  return letters.split('').map(l => l + num);
+}
+
+function findClassByName(csvName) {
+  // 1. 직접 이름 매칭
+  const direct = classes.find(c=>c.name===csvName);
+  if (direct) return direct;
+  // 2. 자동 규칙: DB "K,N1" → ["K1","N1"] 로 확장해서 csvName과 비교
+  return classes.find(c => expandClassName(c.name).includes(csvName));
+}
+
+// ── 데이터 일괄 리셋 ──
+window.resetAllData = async () => {
+  if (!confirm('모든 반 명단 데이터가 삭제됩니다. 진행하시겠습니까?')) return;
+  const btn = $R.querySelector('#vImport .btn-red');
+  btn.disabled = true; btn.textContent = '삭제 중…';
+  try {
+    const batch = writeBatch(db);
+    students.forEach(s => {
+      batch.delete(doc(db,'students',s.id));
+      batch.delete(doc(db,'records',s.id));
+    });
+    await batch.commit();
+    toast('모든 학생 데이터가 삭제되었습니다.');
+    await reload();
+  } catch(e) { toast('삭제 중 오류가 발생했습니다.', true); }
+  btn.disabled = false; btn.textContent = '🗑 데이터 일괄 리셋';
+};
+window.handleImport = input => {
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try {
+      let rows=[];
+      if(file.name.endsWith('.csv')) {
+        const text=new TextDecoder('utf-8').decode(e.target.result);
+        rows=text.split('\n').map(l=>l.split(',').map(c=>c.trim().replace(/\r/,'')));
+      } else {
+        const wb=XLSX.read(e.target.result,{type:'array'});
+        rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''});
+      }
+
+      // 헤더 행 찾기 (No. 또는 성명 포함)
+      let start=0;
+      for(let i=0;i<Math.min(rows.length,10);i++){
+        if(rows[i].some(c=>String(c).includes('성명')||String(c).includes('학번'))){ start=i+1; break; }
+      }
+
+      importRows=[];
+      for(let i=start;i<rows.length;i++){
+        const r=rows[i];
+        const classStr=String(r[1]||'').trim();
+        const stuId=String(r[2]||'').trim();
+        const gender=String(r[3]||'').trim();
+        const name=String(r[4]||'').trim();
+        if(!name||!classStr) continue;
+        const chk=v=>String(v||'').trim()==='ㅇ';
+        importRows.push({
+          classStr, studentId:stuId, gender, name,
+          form:chk(r[5]), insurance:chk(r[6]), idCard:chk(r[7]), military:chk(r[8]),
+          notes:String(r[9]||'').trim(), round:String(r[10]||'').trim()
+        });
+      }
+
+      if(!importRows.length){ toast('유효한 데이터가 없습니다.',true); return; }
+
+      $('importCount').textContent=`(${importRows.length}명)`;
+      $('importBody').innerHTML=importRows.map(r=>{
+        const cls=findClassByName(r.classStr);
+        return `<tr>
+          <td>${cls?`<span class="bdg bdg-g">${r.classStr}</span>`:`<span class="bdg bdg-red">${r.classStr}⚠</span>`}</td>
+          <td>${r.studentId}</td><td><strong>${r.name}</strong></td><td>${r.gender}</td>
+          <td class="center">${r.form?'✅':''}</td><td class="center">${r.insurance?'✅':''}</td>
+          <td class="center">${r.idCard?'✅':''}</td><td class="center">${r.military?'✅':''}</td>
+          <td>${r.round}</td><td>${r.notes}</td>
+        </tr>`;
+      }).join('');
+      $('importPreviewCard').style.display='block';
+
+      const missing=[...new Set(importRows.filter(r=>!findClassByName(r.classStr)).map(r=>r.classStr))];
+      if(missing.length) toast(`⚠️ 반 없음: ${missing.join(', ')} — 먼저 반을 추가해 주세요.`,true);
+    } catch(e){ toast('파일 읽기 실패: '+e.message,true); }
+  };
+  file.name.endsWith('.csv') ? reader.readAsArrayBuffer(file) : reader.readAsArrayBuffer(file);
+};
+
+window.commitImport = async () => {
+  const valid=importRows.filter(r=>findClassByName(r.classStr));
+  if(!valid.length) return toast('가져올 수 있는 데이터가 없습니다.',true);
+  const btn=$R.querySelector('#importPreviewCard .btn-gold');
+  btn.disabled=true; btn.textContent='저장 중…';
+  try {
+    const batch=writeBatch(db);
+    for(const r of valid){
+      const cls=findClassByName(r.classStr);
+      // 기존 학생 찾기 (같은 반 + 학번 or 이름)
+      const existing=students.find(s=>s.classId===cls.id&&(s.studentId===r.studentId||s.name===r.name));
+      const sid=existing?.id||doc(collection(db,'students')).id;
+      batch.set(doc(db,'students',sid),{classId:cls.id,studentId:r.studentId,name:r.name,gender:r.gender,subClass:r.classStr,updatedAt:serverTimestamp()},{merge:true});
+      batch.set(doc(db,'records',sid),{studentId:sid,classId:cls.id,form:r.form,insurance:r.insurance,idCard:r.idCard,military:r.military,round:r.round,notes:r.notes,updatedAt:serverTimestamp()},{merge:true});
+    }
+    await batch.commit();
+    toast(`${valid.length}명 가져오기 완료 ✅`);
+    $('importPreviewCard').style.display='none';
+    $('importFile').value='';
+    importRows=[];
+    await reload();
+  } catch(e){ toast('저장 실패: '+e.message,true); }
+  btn.disabled=false; btn.textContent='💾 가져오기 실행';
+};
+
+// ── EXPORT ──
+window.downloadSample = () => {
+  const wb = XLSX.utils.book_new();
+  const header = ['No.','반','학번','성별','성명','전입신고서','건강보험증','신분증','징병검사','비고','차수'];
+  const sampleRows = classes.length
+    ? classes.flatMap((cls,ci) => [
+        [1, cls.name, '0001', '남', '홍길동', 'ㅇ', 'ㅇ', 'ㅇ', 'ㅇ', '', '1차'],
+        [2, cls.name, '0002', '여', '김영희', 'ㅇ', '',   'ㅇ', '',   '', ''],
+      ])
+    : [
+        [1, 'A1', '0001', '남', '홍길동', 'ㅇ', 'ㅇ', 'ㅇ', 'ㅇ', '', '1차'],
+        [2, 'A1', '0002', '여', '김영희', 'ㅇ', '',   'ㅇ', '',   '', ''],
+        [3, 'X1', '0003', '남', '이철수', '',   '',   '',   '',   '개별 전입완료', '개별완료'],
+      ];
+  const ws = XLSX.utils.aoa_to_sheet([header, ...sampleRows]);
+  ws['!cols'] = [{wch:5},{wch:6},{wch:8},{wch:5},{wch:10},{wch:10},{wch:10},{wch:8},{wch:8},{wch:16},{wch:8}];
+  // 헤더 스타일 (배경색)
+  XLSX.utils.book_append_sheet(wb, ws, '전입신고');
+  XLSX.writeFile(wb, 'QUETTA_전입신고_샘플.xlsx');
+  toast('샘플 파일이 다운로드되었습니다.');
+};
+
+// ── 원서접수 배차정보 업데이트 ──
+let vehicleImportRows = [];
+
+window.handleVehicleImport = input => {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    let rows = [];
+    if (file.name.endsWith('.csv')) {
+      const text = new TextDecoder('utf-8').decode(e.target.result);
+      rows = text.split('\n').map(l => l.split(',').map(c => c.trim().replace(/\r/,'')));
+    } else {
+      const wb = XLSX.read(e.target.result, {type:'array'});
+      rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:''});
+    }
+    if (!rows.length) { toast('빈 파일입니다.',true); return; }
+
+    // 헤더 행 찾기 (학번 + 차량 컬럼 인덱스 파악)
+    let headerRow = -1, idIdx = -1, vehIdx = -1;
+    for (let i = 0; i < Math.min(rows.length, 10); i++) {
+      const r = rows[i];
+      const idx1 = r.findIndex(c => String(c).trim() === '학번');
+      const idx2 = r.findIndex(c => String(c).trim() === '차량');
+      if (idx1 >= 0 && idx2 >= 0) { headerRow = i; idIdx = idx1; vehIdx = idx2; break; }
+    }
+    if (headerRow < 0) { toast('헤더에 "학번"과 "차량" 컬럼이 필요합니다.', true); return; }
+
+    vehicleImportRows = [];
+    for (let i = headerRow + 1; i < rows.length; i++) {
+      const r = rows[i];
+      const sid = String(r[idIdx] || '').trim();
+      const vRaw = String(r[vehIdx] || '').trim();
+      if (!sid) continue;
+      // 앱 학생 매칭 + 차량 유효성 판정
+      const stu = students.find(s => String(s.studentId) === sid);
+      let status;
+      if (!stu) status = 'notfound';
+      else if (vRaw === '' || vRaw === '-' || vRaw === '미배정') status = 'clear';
+      else if (VEHICLES.includes(vRaw)) status = 'ok';
+      else status = 'invalid';
+      vehicleImportRows.push({
+        studentId: sid,
+        vehicle: (status === 'clear') ? '' : vRaw,
+        appName: stu ? stu.name : null,
+        appId: stu ? stu.id : null,
+        status
+      });
+    }
+
+    if (!vehicleImportRows.length) { toast('유효한 데이터가 없습니다.', true); return; }
+
+    // 미리보기 렌더
+    const okCnt = vehicleImportRows.filter(r=>r.status==='ok').length;
+    const clearCnt = vehicleImportRows.filter(r=>r.status==='clear').length;
+    const nfCnt = vehicleImportRows.filter(r=>r.status==='notfound').length;
+    const invCnt = vehicleImportRows.filter(r=>r.status==='invalid').length;
+    $('vehicleImportCount').textContent = `총 ${vehicleImportRows.length}건 (배정 ${okCnt} / 미배정 ${clearCnt} / 학생없음 ${nfCnt} / 차량이상 ${invCnt})`;
+    $('vehicleImportBody').innerHTML = vehicleImportRows.map(r => {
+      let badge, style;
+      if (r.status === 'ok')       { badge = '<span class="bdg bdg-gold">배정</span>'; style = ''; }
+      else if (r.status === 'clear') { badge = '<span class="bdg bdg-gray">미배정</span>'; style = ''; }
+      else if (r.status === 'notfound') { badge = '<span class="bdg bdg-red">앱에 학번 없음</span>'; style = 'opacity:.5'; }
+      else                         { badge = '<span class="bdg bdg-red">차량 목록에 없음</span>'; style = 'opacity:.5'; }
+      const vehShow = r.vehicle || '<span style="color:var(--t3)">(미배정)</span>';
+      return `<tr style="${style}">
+        <td>${r.studentId}</td>
+        <td>${r.appName || '<span style="color:var(--t3)">(없음)</span>'}</td>
+        <td style="font-size:12px">${vehShow}</td>
+        <td class="center">${badge}</td>
+      </tr>`;
+    }).join('');
+    $('vehicleImportPreviewCard').style.display = '';
+    input.value = '';
+  };
+  reader.readAsArrayBuffer(file);
+};
+
+window.commitVehicleImport = async () => {
+  const toApply = vehicleImportRows.filter(r => r.status === 'ok' || r.status === 'clear');
+  if (!toApply.length) { toast('적용할 유효한 데이터가 없습니다.', true); return; }
+  if (!confirm(`${toApply.length}건의 차량 배정을 업데이트합니다. 진행할까요?`)) return;
+
+  const by = meDoc.name || '직원';
+  let ok = 0, errors = 0;
+  const CHUNK = 10;
+  for (let i = 0; i < toApply.length; i += CHUNK) {
+    const batch = toApply.slice(i, i + CHUNK);
+    await Promise.all(batch.map(async r => {
+      try {
+        await setDoc(doc(db,'suneungRecords',r.appId), {vehicle:r.vehicle, updatedBy:by, updatedAt:serverTimestamp()}, {merge:true});
+        const cur = suneungRecords.find(x => x.id === r.appId);
+        if (cur) cur.vehicle = r.vehicle;
+        else suneungRecords.push({id: r.appId, vehicle: r.vehicle});
+        ok++;
+      } catch (e) { errors++; }
+    }));
+  }
+  toast(`${ok}건 업데이트 완료${errors?` (에러 ${errors}건)`:''}`);
+  $('vehicleImportPreviewCard').style.display = 'none';
+  vehicleImportRows = [];
+};
+
+window.exportClass = () => {
+  const myClassIds = meDoc.classIds || (meDoc.classId ? [meDoc.classId] : null);
+  let list = myClassIds
+    ? students.filter(s => myClassIds.includes(s.classId))
+    : (activeClsFilter ? students.filter(s=>s.classId===activeClsFilter) : students);
+
+  // 반→성별→이름 순 정렬
+  list = [...list].sort((a,b) => {
+    const aOut = !!records.find(r=>r.id===a.id)?.withdrawn;
+    const bOut = !!records.find(r=>r.id===b.id)?.withdrawn;
+    if (aOut !== bOut) return aOut ? 1 : -1;
+    const sa = a.subClass||classes.find(c=>c.id===a.classId)?.name||'';
+    const sb = b.subClass||classes.find(c=>c.id===b.classId)?.name||'';
+    if (sa !== sb) return sa.localeCompare(sb, 'ko');
+    if (a.gender !== b.gender) return a.gender==='남' ? -1 : 1;
+    return (a.name||'').localeCompare(b.name||'', 'ko');
+  });
+
+  const chk = v => v===2?'ㅇ':v===1?'△':'';
+  const rows = [['반','학번','성별','성명','전입신고서','건강보험증','신분증','징병검사','회차','비고','퇴소']];
+  list.forEach(s => {
+    const r   = records.find(r=>r.id===s.id)||{};
+    const cls = classes.find(c=>c.id===s.classId);
+    const clsName = s.subClass || cls?.name || '';
+    rows.push([clsName, s.studentId||'', s.gender||'', s.name||'',
+      chk(r.form), chk(r.insurance), chk(r.idCard), chk(r.military),
+      r.round||'', r.notes||'', r.withdrawn?'퇴소':'']);
+  });
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:6},{wch:8},{wch:5},{wch:10},{wch:10},{wch:10},{wch:8},{wch:8},{wch:8},{wch:16},{wch:6}];
+  XLSX.utils.book_append_sheet(wb, ws, '전입신고현황');
+  XLSX.writeFile(wb, `QUETTA_전입신고현황_${new Date().toLocaleDateString('ko')}.xlsx`);
+};
+
+// ── 서류 관리 (구글 드라이브 링크 방식) ──
+let docsSettings = {};
+
+// 구글 드라이브 링크 → 직접 다운로드 링크 변환
+function toDriveDownload(url) {
+  if (!url) return '';
+  // 형식1: /file/d/FILE_ID/view
+  const m1 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (m1) return `https://drive.google.com/uc?export=download&id=${m1[1]}`;
+  // 형식2: id=FILE_ID
+  const m2 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (m2) return `https://drive.google.com/uc?export=download&id=${m2[1]}`;
+  // 이미 변환된 링크거나 다른 URL이면 그대로
+  return url;
+}
+
+// 샘플 표시용 — PDF는 iframe, 이미지는 img
+function toDriveView(url) {
+  if (!url) return '';
+  const m1 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  const m2 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  const id = m1?.[1] || m2?.[1];
+  if (!id) return url;
+  // PDF 여부는 저장 시 판단, 여기선 id만 추출해서 반환
+  return id;
+}
+
+function driveEmbedHtml(id, isPdf) {
+  if (!id) return '';
+  if (isPdf) return `<iframe src="https://drive.google.com/file/d/${id}/preview" style="width:100%;height:800px;border:none;border-radius:6px"></iframe>`;
+  return `<img src="https://lh3.googleusercontent.com/d/${id}" style="max-width:100%;border-radius:6px;display:block" alt="전입신고 샘플" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><div style="display:none;color:var(--t3);font-size:13px;padding:10px">이미지를 불러올 수 없습니다.</div>`;
+}
+
+async function loadDocs() {
+  const snap = await getDoc(doc(db,'settings','documents'));
+  docsSettings = snap.exists() ? snap.data() : {};
+}
+
+// 담임용 서류 뷰
+async function renderDocs() {
+  if (!Object.keys(docsSettings).length) await loadDocs();
+  const d = docsSettings;
+  $('docsBtns').innerHTML = `
+    ${d.form ? `<a href="${d.form}" target="_blank" class="btn btn-gold">전입신고 서류 다운로드</a>` : '<span class="bdg bdg-gray">전입신고 서류 미등록</span>'}
+    ${d.insurance ? `<a href="${d.insurance}" target="_blank" class="btn btn-ghost">건강보험증 서류 다운로드</a>` : '<span class="bdg bdg-gray">건강보험증 서류 미등록</span>'}
+  `;
+  $('docsSample').innerHTML = d.sampleId
+    ? driveEmbedHtml(d.sampleId, d.sampleIsPdf)
+    : `<div class="empty"><div class="ei">📄</div><p>등록된 샘플이 없습니다.</p></div>`;
+}
+
+// 직원용 서류 관리 뷰
+async function renderDocsAdmin() {
+  if (!Object.keys(docsSettings).length) await loadDocs();
+  const d = docsSettings;
+  $('linkForm').value   = d.formRaw   || '';
+  $('linkIns').value    = d.insRaw    || '';
+  $('linkSample').value = d.sampleRaw || '';
+  $('sampleTypePdf').checked = !!d.sampleIsPdf;
+  $('sampleTypeImg').checked = !d.sampleIsPdf;
+  updateSamplePreview();
+}
+
+window.saveDocs = async () => {
+  const formRaw   = $('linkForm').value.trim();
+  const insRaw    = $('linkIns').value.trim();
+  const sampleRaw = $('linkSample').value.trim();
+  const isPdf     = $('sampleTypePdf').checked;
+  try {
+    const sampleId = toDriveView(sampleRaw);
+    const data = {
+      formRaw, insRaw, sampleRaw,
+      form:      toDriveDownload(formRaw),
+      insurance: toDriveDownload(insRaw),
+      sampleId,
+      sampleIsPdf: isPdf,
+    };
+    await setDoc(doc(db,'settings','documents'), data, { merge: true });
+    docsSettings = data;
+    toast('저장되었습니다. ✅');
+    updateSamplePreview();
+  } catch(e) { toast('저장 실패: ' + e.message, true); }
+};
+
+window.updateSamplePreview = () => {
+  const url = $('linkSample')?.value.trim();
+  const isPdf = $('sampleTypePdf')?.checked;
+  const el = $('samplePreview'); if(!el) return;
+  const id = toDriveView(url);
+  el.innerHTML = id ? driveEmbedHtml(id, isPdf) : '';
+};
+
+// ── HELPERS ──
+window.toggleClsField = () => { $('usrClsGrp').style.display=$('usrRole').value==='teacher'?'block':'none'; };
+function openOverlay(id){ $(id).classList.add('open'); }
+window.closeOverlay = id => { $(id).classList.remove('open'); };
+function showScreen(id){
+  ['loginScreen','pendingScreen','appScreen'].forEach(s=>{
+    const el=$(s); el.style.display=s===id?(s==='appScreen'?'block':'flex'):'none';
+  });
+}
+function fmtDate(str){
+  if(!str) return '-';
+  const [y,m,d]=str.split('-').map(Number);
+  const day=['일','월','화','수','목','금','토'][new Date(y,m-1,d).getDay()];
+  return `${y}. ${m}. ${d}. (${day})`;
+}
+function toast(msg,err=false){
+  const t=document.createElement('div');
+  t.className=`toast${err?' err':''}`;
+  t.textContent=msg;
+  $('toastWrap').appendChild(t);
+  setTimeout(()=>t.remove(),3500);
+}
+function $(id){ return $R.getElementById(id) || document.getElementById(id); }
+
+window.renderStudents=renderStudents;
+window.renderMyStudents=renderMyClass;
+
+// ============================================================
+// 증명서 발급 (Certificate Issuance)
+// ============================================================
+
+// 과정별 수업기간 (Google Sheet 마스터 데이터 이관)
+const CERT_COURSES = [
+  { name: '2022 N수 정규시즌', start: '2022. 8. 7', end: '2022. 11. 18' },
+  { name: '2023 N수 정규시즌', start: '2023. 2. 19', end: '2023. 11. 16' },
+  { name: '2024 N수 정규시즌', start: '2024. 2. 18', end: '2024. 11. 14' },
+  { name: '2024 N수 시즌ZERO', start: '2024. 1. 7', end: '2024. 2. 17' },
+  { name: '윈터스쿨', start: '2025. 12. 31', end: '2026. 1. 31' },
+  { name: '2025 N수 시즌ZERO', start: '2025. 1. 5', end: '2025. 2. 15' },
+  { name: '2025 N수 정규시즌', start: '2025. 2. 16', end: '2025. 11. 13' },
+  { name: '2026 윈터스쿨', start: '2025. 12. 31', end: '2026. 1. 31' },
+  { name: '2026 N수 시즌ZERO', start: '2026. 1. 1', end: '2026. 2. 19' },
+  { name: '2026 N수 정규시즌', start: '2026. 2. 20', end: '2026. 11. 19' },
+];
+
+// 런타임 과정 목록 (Firestore에서 로드, 기본값은 CERT_COURSES)
+let certCourses = CERT_COURSES.slice();
+
+// 과정 로드
+async function loadCertCourses() {
+  try {
+    const snap = await getDoc(doc(db, 'certConfig', 'courses'));
+    if (snap.exists() && Array.isArray(snap.data().list) && snap.data().list.length) {
+      certCourses = snap.data().list;
+    } else {
+      certCourses = CERT_COURSES.slice();
+    }
+  } catch (e) {
+    console.warn('[loadCertCourses]', e);
+    certCourses = CERT_COURSES.slice();
+  }
+  renderCertCourseDropdown();
+  renderCourseListUI();
+}
+
+// 드롭다운 갱신
+function renderCertCourseDropdown() {
+  const sel = $('certCourse');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">— 선택 —</option>' +
+    certCourses.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+  if (cur) sel.value = cur;
+}
+
+// 과정 관리 리스트 렌더링
+function renderCourseListUI() {
+  const el = $('courseListBody');
+  if (!el) return;
+  if (!certCourses.length) {
+    el.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--t3);padding:20px">등록된 과정이 없습니다.</td></tr>';
+    return;
+  }
+  el.innerHTML = certCourses.map((c, i) => `<tr>
+    <td>${c.name}</td>
+    <td>${c.start}</td>
+    <td>${c.end}</td>
+    <td class="center"><button class="btn btn-ghost btn-sm" onclick="deleteCertCourse(${i})" title="삭제">삭제</button></td>
+  </tr>`).join('');
+}
+
+// 과정 추가
+window.addCertCourse = async () => {
+  const name = $('newCourseName').value.trim();
+  const start = $('newCourseStart').value.trim();
+  const end = $('newCourseEnd').value.trim();
+  if (!name) return toast('과정 이름을 입력하세요.', true);
+  if (!start || !end) return toast('시작일과 종료일을 입력하세요.', true);
+  if (certCourses.some(c => c.name === name)) return toast('같은 이름의 과정이 이미 있습니다.', true);
+  // YYYY-MM-DD → "YYYY. M. D" 포맷 변환
+  const fmtDate = (d) => {
+    const [y,m,dd] = d.split('-');
+    return `${y}. ${parseInt(m)}. ${parseInt(dd)}`;
+  };
+  certCourses.push({ name, start: fmtDate(start), end: fmtDate(end) });
+  try {
+    await setDoc(doc(db, 'certConfig', 'courses'), { list: certCourses, updatedAt: serverTimestamp() });
+    $('newCourseName').value = '';
+    $('newCourseStart').value = '';
+    $('newCourseEnd').value = '';
+    renderCertCourseDropdown();
+    renderCourseListUI();
+    toast(`과정 "${name}" 추가됨`);
+  } catch (e) {
+    toast('저장 실패: ' + e.message, true);
+  }
+};
+
+// 과정 삭제
+window.deleteCertCourse = async (idx) => {
+  const c = certCourses[idx];
+  if (!c) return;
+  if (!confirm(`"${c.name}" 과정을 삭제할까요?`)) return;
+  certCourses.splice(idx, 1);
+  try {
+    await setDoc(doc(db, 'certConfig', 'courses'), { list: certCourses, updatedAt: serverTimestamp() });
+    renderCertCourseDropdown();
+    renderCourseListUI();
+    toast('삭제 완료');
+  } catch (e) {
+    toast('삭제 실패: ' + e.message, true);
+  }
+};
+
+// 수강확인서 선택 시 날짜 필드 표시
+window.certTogglePeriodOverride = () => {
+  const type = $('certType').value;
+  const box = $('certPeriodOverrideBox');
+  if (!box) return;
+  if (type === '수강확인서') {
+    box.style.display = '';
+    certAutoFillDates();
+  } else {
+    box.style.display = 'none';
+  }
+};
+
+// 과정 선택 시 날짜 자동 채움 (수강확인서 override 필드용)
+window.certAutoFillDates = () => {
+  const box = $('certPeriodOverrideBox');
+  if (!box || box.style.display === 'none') return;
+  const courseName = $('certCourse').value;
+  const course = certCourses.find(c => c.name === courseName);
+  if (!course) return;
+  // "2026. 2. 20" → "2026-02-20" 변환
+  const toIso = (s) => {
+    const parts = s.split('.').map(x => x.trim());
+    if (parts.length !== 3) return '';
+    return `${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
+  };
+  if (!$('certPeriodStart').value) $('certPeriodStart').value = toIso(course.start);
+  if (!$('certPeriodEnd').value) $('certPeriodEnd').value = toIso(course.end);
+};
+
+// 종류별 증명 문구
+const CERT_TEXTS = {
+  '재원증명서': '위 학생은 현재 본 학원 학생임을 증명합니다.',
+  '수강확인서': '위 학생은 상기 수업기간동안 본 학원에 등록했음을 증명합니다.',
+  '졸업증명서': '위 학생은 상기 수업기간동안 본 학원을 수료하였음을 증명합니다.',
+};
+
+// 발급자 이름 로컬 저장 (편의)
+const CERT_ISSUER_KEY = 'quetta_cert_issuer';
+const SEAL_URL = 'seal.png'; // GitHub 저장소 루트에 seal.png 파일 배포 (index.html과 같은 위치)
+
+let certTab = 'form'; // 'form' | 'history'
+
+function renderCert() {
+  // 과정 목록 로드 (Firestore + 드롭다운 채우기)
+  loadCertCourses();
+  // 저장된 발급자 이름 복원
+  if ($('certIssuer') && !$('certIssuer').value) {
+    const saved = localStorage.getItem(CERT_ISSUER_KEY);
+    if (saved) $('certIssuer').value = saved;
+    else if (meDoc?.name) $('certIssuer').value = meDoc.name;
+  }
+  // 이메일 설정 로드
+  loadEmailConfig();
+  // 카운터 정보 로드
+  loadCounterInfo();
+  certSwitchTab(certTab);
+}
+
+window.certSwitchTab = (tab) => {
+  certTab = tab;
+  $('certFormPanel').style.display    = (tab === 'form')    ? 'grid' : 'none';
+  $('certHistoryPanel').style.display = (tab === 'history') ? 'block' : 'none';
+  $('certTabForm').className    = 'btn ' + (tab==='form'    ? 'btn-gold' : 'btn-ghost');
+  $('certTabHistory').className = 'btn ' + (tab==='history' ? 'btn-gold' : 'btn-ghost');
+  if (tab === 'form') certUpdatePreview();
+  else renderCertHistory();
+};
+
+// 학번 조회 → 성명·생년월일·반 자동 채움 (미등록이어도 수동 입력 허용)
+window.certLookupStudent = async () => {
+  const sid = $('certStudentId').value.trim();
+  const info = $('certStudentInfo');
+  const bdayNote = $('certBirthdayNote');
+  if (!sid) { info.textContent = ''; bdayNote.textContent = ''; certUpdatePreview(); return; }
+  const stu = students.find(s => String(s.studentId) === sid);
+  if (!stu) {
+    info.innerHTML = `<span style="color:#D97706">⚠️ 학번 ${sid} 미등록 — 아래 성명·반·생년월일을 직접 입력해주세요</span>`;
+    bdayNote.textContent = '';
+    certUpdatePreview();
+    // 시트에서 이메일만 조회 시도
+    if (emailConfig?.sheetUrl && !$('certEmail').value.trim()) {
+      try {
+        const map = await loadSheetEmails();
+        const email = map[sid];
+        if (email) $('certEmail').value = email;
+      } catch (e) { /* 조용히 스킵 */ }
+    }
+    return;
+  }
+  const cls = classes.find(c => c.id === stu.classId);
+  info.innerHTML = `✓ <strong>${stu.name}</strong> · ${cls?cls.name+'반':''} · ${stu.gender||''}`;
+  // 성명·반 자동 채움 (수동 입력된 거 안 덮어쓰기 위해 비어있을 때만)
+  if (!$('certName').value.trim()) $('certName').value = stu.name;
+  if (!$('certClassName').value.trim()) $('certClassName').value = cls?.name || '';
+  // 생년월일 자동 채움
+  if (stu.birthday) {
+    $('certBirthday').value = stu.birthday;
+    bdayNote.innerHTML = '<span style="color:var(--g700)">등록된 생년월일 사용</span>';
+  } else {
+    $('certBirthday').value = '';
+    bdayNote.innerHTML = '<span style="color:#E74C3C">생년월일 미등록 — 아래에 입력하면 학생 정보에 자동 저장됩니다</span>';
+  }
+  certUpdatePreview();
+  // 이메일 자동 채움 (시트에서 조회, 실패해도 조용히 스킵)
+  if (emailConfig?.sheetUrl && !$('certEmail').value.trim()) {
+    try {
+      const map = await loadSheetEmails();
+      const email = map[sid];
+      if (email) $('certEmail').value = email;
+    } catch (e) { /* 시트 조회 실패는 무시 */ }
+  }
+};
+
+// 미리보기 갱신
+window.certUpdatePreview = () => {
+  const type = $('certType').value || '재원증명서';
+  const sid  = $('certStudentId').value.trim();
+  const stu  = students.find(s => String(s.studentId) === sid);
+  const bday = $('certBirthday').value.trim();
+  const courseName = $('certCourse').value;
+  const course = certCourses.find(c => c.name === courseName);
+  const purpose = $('certPurpose').value.trim();
+  const cls = stu ? classes.find(c => c.id === stu.classId) : null;
+  // 수동 입력 성명·반 (우선순위: 폼 입력 > 등록된 학생 정보)
+  const manualName = $('certName')?.value.trim();
+  const manualClass = $('certClassName')?.value.trim();
+  const displayName = manualName || stu?.name || '________';
+  const displayClass = manualClass || cls?.name || courseName || '________';
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}년 ${today.getMonth()+1}월 ${today.getDate()}일`;
+  const year = today.getFullYear();
+  const nextNum = certNextNumberPreview();
+  // 수강확인서일 때 override 날짜 사용
+  let pStart = course?.start || '________';
+  let pEnd = course?.end || '________';
+  if (type === '수강확인서') {
+    const ovStart = $('certPeriodStart')?.value;
+    const ovEnd = $('certPeriodEnd')?.value;
+    if (ovStart) pStart = ovStart.replace(/-0?/g, '. ').replace(/^\. /, '') + ''; // "2026-08-01" → "2026. 8. 1"
+    if (ovEnd) pEnd = ovEnd.replace(/-0?/g, '. ').replace(/^\. /, '') + '';
+  }
+  const html = renderCertHTML({
+    number: nextNum,
+    type,
+    name: displayName,
+    studentId: sid || '________',
+    birthday: bday || '________',
+    className: displayClass,
+    course: courseName || '________',
+    periodStart: pStart,
+    periodEnd: pEnd,
+    purpose: purpose || '________',
+    issuedDate: todayStr,
+    certText: CERT_TEXTS[type] || '',
+  });
+  $('certPreview').innerHTML = `<div style="transform:scale(0.75);transform-origin:top left;width:794px;height:1123px">${html}</div>`;
+};
+
+// 다음 증명서 번호 미리보기 (실제 채번은 트랜잭션에서)
+function certNextNumberPreview() {
+  const year = new Date().getFullYear();
+  const yearCerts = certificates.filter(c => (c.number||'').startsWith(`${year}-`));
+  const lastNums = yearCerts.map(c => parseInt((c.number||'').match(/\d+-(\d+)/)?.[1] || '0')).filter(n => !isNaN(n));
+  const last = lastNums.length ? Math.max(...lastNums) : 33;
+  return `${year}-${last+1}(교)`;
+}
+
+// 증명서 HTML 생성 (A4 세로, 794x1123px) - 원본 스프레드시트 양식
+function renderCertHTML(d) {
+  return `<div style="width:794px;height:1123px;background:#fff;padding:60px 80px;box-sizing:border-box;font-family:'Noto Serif KR','Nanum Myeongjo',serif;color:#000;position:relative">
+    <!-- 증명서 번호 (좌측 상단) -->
+    <div style="font-size:14px;letter-spacing:1px">제 ${d.number} 호</div>
+
+    <!-- 제목 -->
+    <div style="text-align:center;font-size:44px;font-weight:700;margin:80px 0 90px;letter-spacing:24px">${d.type.split('').join(' ')}</div>
+
+    <!-- 정보 블록 (좌측 정렬) -->
+    <div style="padding:0 40px;font-size:19px;line-height:1.6">
+      <table style="border-collapse:collapse;width:100%">
+        <tr>
+          <td style="width:130px;padding:14px 0">성  명 <span style="margin:0 10px">:</span></td>
+          <td style="width:250px">${d.name}</td>
+          <td style="width:100px">학  번 <span style="margin:0 10px">:</span></td>
+          <td>${d.studentId}</td>
+        </tr>
+        <tr>
+          <td style="padding:14px 0">생년월일 <span style="margin:0 10px">:</span></td>
+          <td colspan="3">${d.birthday}</td>
+        </tr>
+        <tr>
+          <td style="padding:14px 0">수 강 반 <span style="margin:0 10px">:</span></td>
+          <td colspan="3">${d.course}</td>
+        </tr>
+        <tr>
+          <td style="padding:14px 0">수업기간 <span style="margin:0 10px">:</span></td>
+          <td colspan="3">${d.periodStart} <span style="margin:0 8px">부터</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; ${d.periodEnd} <span style="margin:0 8px">까지</span></td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- 증명 문구 (가운데) -->
+    <div style="text-align:center;font-size:21px;margin:100px 0;letter-spacing:1px">${d.certText}</div>
+
+    <!-- 용도 (좌측 정렬) -->
+    <div style="padding:0 40px;font-size:19px;margin:40px 0">용도 <span style="margin:0 10px">:</span> ${d.purpose}</div>
+
+    <!-- 발급일자 (가운데) -->
+    <div style="text-align:center;font-size:21px;margin:70px 0 50px;letter-spacing:2px">${d.issuedDate}</div>
+
+    <!-- 주소 & 학원장 (우측 정렬) -->
+    <div style="text-align:right;padding-right:60px;line-height:2">
+      <div style="font-size:16px">경기도 이천시 마장면 서이천로337번길 55</div>
+      <div style="font-size:22px;font-weight:700;margin-top:6px">강남대성기숙 QUETTA 학원장<img src="${SEAL_URL}" style="display:inline-block;width:110px;height:110px;object-fit:contain;margin-left:-20px;vertical-align:middle;position:relative;z-index:1" onerror="this.outerHTML='<span style=&quot;display:inline-block;width:90px;height:90px;border:2px solid #c00;border-radius:50%;color:#c00;font-size:14px;text-align:center;line-height:86px;font-weight:700;margin-left:-15px;vertical-align:middle&quot;>[직인]</span>'"></div>
+    </div>
+  </div>`;
+}
+
+// 발급자 이름 로컬 저장
+function certSaveIssuer() {
+  const name = $('certIssuer').value.trim();
+  if (name) localStorage.setItem(CERT_ISSUER_KEY, name);
+}
+window.certSaveIssuerLive = certSaveIssuer;
+
+// 단건 발급 (mode: 'pdf' | 'print' | 'email')
+window.certIssue = async (mode = 'pdf') => {
+  const type = $('certType').value;
+  const sid = $('certStudentId').value.trim();
+  if (!sid) return toast('학번을 입력해주세요.', true);
+  const manualName = $('certName').value.trim();
+  const manualClassName = $('certClassName').value.trim();
+  let stu = students.find(s => String(s.studentId) === sid);
+  // 등록된 학생이 없으면 수동 입력으로 가상 학생 객체 생성
+  if (!stu) {
+    if (!manualName) return toast('학번 미등록 학생입니다. 성명을 입력해주세요.', true);
+    stu = {
+      studentId: sid,
+      name: manualName,
+      classId: null,
+      _manual: true,
+      _className: manualClassName,
+    };
+  } else if (manualName && manualName !== stu.name) {
+    // 등록된 이름을 수동으로 덮어쓴 경우
+    stu = { ...stu, name: manualName, _overridden: true };
+  }
+
+  const bday = $('certBirthday').value.trim();
+  if (!bday) return toast('생년월일을 입력해주세요.', true);
+  const courseName = $('certCourse').value;
+  if (!courseName) return toast('과정을 선택해주세요.', true);
+  const purpose = $('certPurpose').value.trim();
+  if (!purpose) return toast('용도를 입력해주세요.', true);
+  const issuer = $('certIssuer').value.trim();
+  if (!issuer) return toast('발급자 이름을 입력해주세요.', true);
+
+  let toEmail = null;
+  if (mode === 'email') {
+    toEmail = $('certEmail').value.trim();
+    if (!toEmail || !toEmail.includes('@')) return toast('이메일 주소를 확인해주세요.', true);
+    if (!emailConfig?.appsScriptUrl) return toast('Apps Script URL이 설정되지 않았습니다.', true);
+  }
+  const format = $R.querySelector('input[name="certAttachFormat"]:checked')?.value || 'pdf';
+
+  let periodOverride = null;
+  if (type === '수강확인서') {
+    const ovStart = $('certPeriodStart').value;
+    const ovEnd = $('certPeriodEnd').value;
+    const toKor = (s) => { const [y,m,d] = s.split('-'); return `${y}. ${parseInt(m)}. ${parseInt(d)}`; };
+    if (ovStart && ovEnd) periodOverride = { start: toKor(ovStart), end: toKor(ovEnd) };
+  }
+
+  await certIssueOne(stu, type, bday, courseName, purpose, issuer, mode, toEmail, format, periodOverride, manualClassName);
+};
+
+// 실제 발급 로직 (단건, 일괄에서도 재사용)
+// 인쇄 창 열기 (별도 팝업에서 자동 print)
+async function certOutputPrint(html, meta) {
+  const printWindow = window.open('', '_blank', 'width=900,height=1000');
+  if (!printWindow) {
+    toast('팝업이 차단되었습니다. 브라우저 팝업 허용 후 재시도해주세요.', true);
+    throw new Error('Popup blocked');
+  }
+  // 상대 URL (seal.png 등) 해석용 base
+  const baseHref = location.href.replace(/[^/]*$/, '');
+  const title = `${meta.type} ${meta.number} - ${meta.studentName}`;
+  printWindow.document.open();
+  printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <base href="${baseHref}">
+  <title>${title}</title>
+  <style>
+    @page { size: A4 portrait; margin: 0; }
+    html, body { margin: 0; padding: 0; background: #fff; }
+    body > div { margin: 0 auto; }
+    @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  </style>
+</head>
+<body>${html}
+<script>
+  window.addEventListener('load', function() {
+    var imgs = document.images;
+    var toWait = imgs.length;
+    function readyPrint() {
+      setTimeout(function() {
+        window.focus();
+        window.print();
+        setTimeout(function() { try { window.close(); } catch(e){} }, 300);
+      }, 200);
+    }
+    if (toWait === 0) { readyPrint(); return; }
+    var loaded = 0;
+    function tick() { if (++loaded >= toWait) readyPrint(); }
+    for (var i = 0; i < imgs.length; i++) {
+      if (imgs[i].complete) tick();
+      else { imgs[i].onload = tick; imgs[i].onerror = tick; }
+    }
+    setTimeout(readyPrint, 3000); // fallback timeout
+  });
+<\/script>
+</body>
+</html>`);
+  printWindow.document.close();
+}
+
+async function certIssueOne(stu, type, bday, courseName, purpose, issuer, mode = 'pdf', toEmail = null, attachFormat = 'pdf', periodOverride = null, manualClassName = '') {
+  const course = certCourses.find(c => c.name === courseName);
+  // 반 이름: 수동 입력 우선, 없으면 classes에서 조회
+  const cls = stu._manual
+    ? { name: stu._className || manualClassName || '' }
+    : (classes.find(c => c.id === stu.classId) || { name: manualClassName || '' });
+  try {
+    // 1) 트랜잭션으로 채번
+    const number = await runTransaction(db, async (t) => {
+      const cRef = doc(db, 'certConfig', 'counter');
+      const cSnap = await t.get(cRef);
+      const year = new Date().getFullYear();
+      const data = cSnap.exists() ? cSnap.data() : {};
+      const cur = (data.year === year) ? (data.last || 33) : 33;
+      const next = cur + 1;
+      t.set(cRef, { last: next, year, updatedAt: serverTimestamp() });
+      return `${year}-${next}(교)`;
+    });
+
+    // 2) 학생 생년월일 저장 (학생관리에 등록된 학생만, 없었으면)
+    if (!stu._manual && stu.id && (!stu.birthday || stu.birthday !== bday)) {
+      await updateDoc(doc(db,'students',stu.id), { birthday: bday, updatedAt: serverTimestamp() });
+      stu.birthday = bday;
+    }
+
+    // 3) HTML 생성 (수강확인서는 override 날짜 사용 가능)
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}년 ${today.getMonth()+1}월 ${today.getDate()}일`;
+    const periodStart = (type === '수강확인서' && periodOverride?.start) ? periodOverride.start : course.start;
+    const periodEnd = (type === '수강확인서' && periodOverride?.end) ? periodOverride.end : course.end;
+    const certData = {
+      number, type,
+      name: stu.name,
+      studentId: stu.studentId,
+      birthday: bday,
+      className: cls?.name || '',
+      course: courseName,
+      periodStart,
+      periodEnd,
+      purpose,
+      issuedDate: todayStr,
+      certText: CERT_TEXTS[type],
+    };
+    const html = renderCertHTML(certData);
+
+    // 4) mode에 따라 PDF 다운로드 / 인쇄창 / 이메일
+    if (mode === 'print') {
+      await certOutputPrint(html, {
+        type, number, studentName: stu.name, studentId: stu.studentId
+      });
+    } else if (mode === 'email') {
+      // Canvas 렌더링 (공통)
+      $('certPdfContainer').innerHTML = html;
+      const canvas = await html2canvas($('certPdfContainer').firstElementChild, {
+        scale: 2, backgroundColor: '#fff'
+      });
+      const imgDataUrl = canvas.toDataURL('image/png');
+      $('certPdfContainer').innerHTML = '';
+
+      // 첨부 파일 준비 (PDF 또는 PNG)
+      let attachmentBase64, attachmentName;
+      if (attachFormat === 'image') {
+        attachmentBase64 = imgDataUrl.split(',')[1];
+        attachmentName = `${stu.studentId}_${stu.name}_${type}_${number}.png`;
+      } else {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
+        pdf.addImage(imgDataUrl, 'PNG', 0, 0, 210, 297);
+        attachmentBase64 = pdf.output('datauristring').split(',')[1];
+        attachmentName = `${stu.studentId}_${stu.name}_${type}_${number}.pdf`;
+      }
+
+      // Apps Script로 전송
+      const period = `${periodStart} ~ ${periodEnd}`;
+      const attachLabel = attachFormat === 'image' ? '이미지' : 'PDF';
+      const subject = fillEmailTemplate(emailConfig?.subjectTpl || DEFAULT_SUBJECT_TPL, {
+        name: stu.name, studentId: stu.studentId, className: cls?.name || '',
+        type, number, course: courseName, period,
+        purpose, issuedDate: todayStr, attachLabel,
+      });
+      const body = fillEmailTemplate(emailConfig?.bodyTpl || DEFAULT_BODY_TPL, {
+        name: stu.name, studentId: stu.studentId, className: cls?.name || '',
+        type, number, course: courseName, period,
+        purpose, issuedDate: todayStr, attachLabel,
+      });
+      await sendEmailViaAppsScript({
+        toEmail, subject, body,
+        attachmentName, attachmentBase64,
+      });
+    } else {
+      // PDF 생성 + 다운로드
+      $('certPdfContainer').innerHTML = html;
+      const canvas = await html2canvas($('certPdfContainer').firstElementChild, {
+        scale: 2, backgroundColor: '#fff'
+      });
+      const imgData = canvas.toDataURL('image/png');
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({orientation:'portrait', unit:'mm', format:'a4'});
+      pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
+      const fname = `${stu.studentId}_${stu.name}_${type}_${number}.pdf`;
+      pdf.save(fname);
+      $('certPdfContainer').innerHTML = '';
+    }
+
+    // 5) 이력 저장 (email 모드는 emailSentAt·emailTo도 함께)
+    const record = {
+      number, type,
+      studentId: stu.studentId,
+      studentName: stu.name,
+      className: cls?.name || '',
+      birthday: bday,
+      course: courseName,
+      periodStart,
+      periodEnd,
+      purpose,
+      issuer,
+      issuedAt: serverTimestamp(),
+    };
+    if (mode === 'email' && toEmail) {
+      record.emailSentAt = serverTimestamp();
+      record.emailTo = toEmail;
+    }
+    const ref = await addDoc(collection(db,'certificates'), record);
+    certificates.unshift({id: ref.id, ...record, issuedAt: new Date(), ...(mode === 'email' ? {emailSentAt: new Date(), emailTo: toEmail} : {})});
+
+    // 발급자 저장
+    certSaveIssuer();
+
+    // 미리보기 갱신 (다음 번호 반영)
+    certUpdatePreview();
+    toast(`${number} ${mode === 'print' ? '인쇄' : mode === 'email' ? '이메일' : 'PDF'} 발급 완료`);
+    return number;
+  } catch (e) {
+    console.error('certIssue error:', e);
+    toast('발급 실패: ' + e.message, true);
+    throw e;
+  }
+}
+
+// 일괄 발급
+// 카운터 조회 / 재설정 (증명서 번호)
+window.loadCounterInfo = async () => {
+  try {
+    const snap = await getDoc(doc(db, 'certConfig', 'counter'));
+    if (snap.exists()) {
+      const d = snap.data();
+      const year = d.year || new Date().getFullYear();
+      const last = d.last || 0;
+      $('counterCurrent').innerHTML = `<code>${year}-${last}(교)</code> → 다음: <code>${year}-${last+1}(교)</code>`;
+    } else {
+      $('counterCurrent').innerHTML = `<span style="color:var(--t3)">카운터 없음 (첫 발급 시 자동 생성)</span>`;
+    }
+  } catch (e) {
+    $('counterCurrent').innerHTML = `<span style="color:#E74C3C">조회 실패: ${e.message}</span>`;
+  }
+};
+
+window.resetCertCounter = async () => {
+  const val = parseInt($('counterReset').value, 10);
+  if (isNaN(val) || val < 0) return toast('숫자를 입력하세요.', true);
+  const year = new Date().getFullYear();
+  const nextNum = val + 1;
+  if (!confirm(`카운터를 ${val}(으)로 재설정합니다.\n다음 발급될 번호는 ${year}-${nextNum}(교) 입니다.\n\n계속하시겠습니까?`)) return;
+
+  try {
+    await setDoc(doc(db, 'certConfig', 'counter'), {
+      last: val,
+      year: year,
+      updatedAt: serverTimestamp(),
+      resetBy: meDoc?.name || meDoc?.email || 'unknown',
+    });
+    $('counterResetStatus').innerHTML = `<span style="color:var(--g700)">✓ 카운터가 ${val}로 재설정되었습니다. 다음 발급: ${year}-${nextNum}(교)</span>`;
+    $('counterReset').value = '';
+    toast(`카운터 재설정 완료 → 다음: ${year}-${nextNum}(교)`);
+    loadCounterInfo();
+    certUpdatePreview(); // 미리보기 번호 갱신
+  } catch (e) {
+    $('counterResetStatus').innerHTML = `<span style="color:#E74C3C">재설정 실패: ${e.message}</span>`;
+    toast('재설정 실패: ' + e.message, true);
+  }
+};
+
+// 구글 시트에서 학번 목록 자동 불러오기
+window.loadStudentIdsFromSheet = async () => {
+  if (!emailConfig?.sheetUrl) {
+    $('bulkIdsStatus').innerHTML = '<span style="color:#E74C3C">❌ 구글 시트가 설정되지 않았습니다. 이메일 발송 설정에서 등록하세요.</span>';
+    return toast('구글 시트가 설정되지 않았습니다.', true);
+  }
+  $('bulkIdsStatus').innerHTML = '<span style="color:var(--t2)">시트 조회 중...</span>';
+  try {
+    const map = await loadSheetEmails();
+    const ids = Object.keys(map);
+    if (!ids.length) {
+      $('bulkIdsStatus').innerHTML = '<span style="color:#E74C3C">시트에서 학번-이메일 매핑을 찾지 못했습니다.</span>';
+      return;
+    }
+    // 기존 textarea에 이미 값 있으면 확인
+    const existing = $('certBulkIds').value.trim();
+    if (existing && !confirm(`이미 입력된 학번이 있습니다. 시트의 ${ids.length}건으로 덮어쓸까요?`)) return;
+    $('certBulkIds').value = ids.join('\n');
+    $('bulkIdsStatus').innerHTML = `<span style="color:var(--g700)">✓ ${ids.length}건 불러옴</span>`;
+    toast(`${ids.length}건의 학번을 불러왔습니다.`);
+  } catch (e) {
+    $('bulkIdsStatus').innerHTML = `<span style="color:#E74C3C">❌ ${e.message}</span>`;
+    toast('시트 조회 실패: ' + e.message, true);
+  }
+};
+
+window.certBulkIssue = async (mode = 'pdf') => {
+  const type = $('certType').value;
+  const courseName = $('certCourse').value;
+  const purpose = $('certPurpose').value.trim();
+  const issuer = $('certIssuer').value.trim();
+  if (!courseName || !purpose || !issuer) return toast('종류·과정·용도·발급자를 먼저 입력하세요.', true);
+  const ids = $('certBulkIds').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if (!ids.length) return toast('학번을 입력하세요.', true);
+
+  // 이메일 모드는 시트에서 이메일 조회
+  let emailMap = null;
+  const format = $R.querySelector('input[name="certAttachFormat"]:checked')?.value || 'pdf';
+  if (mode === 'email') {
+    if (!emailConfig?.appsScriptUrl) return toast('Apps Script URL이 설정되지 않았습니다.', true);
+    if (!emailConfig?.sheetUrl) return toast('구글 시트가 설정되지 않았습니다. 학번-이메일 매핑용 시트를 등록하세요.', true);
+    try {
+      emailMap = await loadSheetEmails();
+    } catch (e) {
+      return toast('시트 조회 실패: ' + e.message, true);
+    }
+  }
+
+  // 사전 검사: 각 학번을 상태별로 분류
+  const preFlight = ids.map(sid => {
+    const stu = students.find(s => String(s.studentId) === sid);
+    if (!stu) return { sid, status: 'no-student', label: `${sid} — 학번 미등록` };
+    if (!stu.birthday) return { sid, stu, status: 'no-birthday', label: `${sid} ${stu.name} — 생년월일 미등록` };
+    if (mode === 'email' && !emailMap[sid]) return { sid, stu, status: 'no-email', label: `${sid} ${stu.name} — 이메일 미등록` };
+    // 이미 발급 이력 있는지 확인 (같은 학번 + 같은 종류)
+    const prevIssues = certificates.filter(c => String(c.studentId) === sid && c.type === type);
+    const email = mode === 'email' ? emailMap[sid] : null;
+    let label = `${sid} ${stu.name}${email ? ' → ' + email : ''}`;
+    if (prevIssues.length > 0) {
+      const lastNum = prevIssues[0]?.number || '';
+      label += ` ⚠️ 이미 발급됨 (${prevIssues.length}회, 최근: ${lastNum})`;
+    }
+    return { sid, stu, email, status: 'ok', label, prevCount: prevIssues.length };
+  });
+
+  const okList = preFlight.filter(p => p.status === 'ok');
+  const alreadyIssued = okList.filter(p => (p.prevCount || 0) > 0);
+  const noStudent = preFlight.filter(p => p.status === 'no-student');
+  const noBirthday = preFlight.filter(p => p.status === 'no-birthday');
+  const noEmail = preFlight.filter(p => p.status === 'no-email');
+
+  const modeLabel = mode === 'email' ? `이메일 발송 (${format === 'image' ? 'PNG' : 'PDF'})` : 'PDF 다운로드';
+
+  // 확인 다이얼로그: 카테고리별 요약 + 상세 리스트
+  let msg = `📧 일괄 ${modeLabel} — 발송 전 확인\n\n`;
+  msg += `총 ${ids.length}건 중:\n`;
+  msg += `✅ 발송 가능: ${okList.length}건`;
+  if (alreadyIssued.length > 0) msg += ` (그 중 이미 발급 이력 있음: ${alreadyIssued.length}건)`;
+  msg += `\n`;
+  if (noEmail.length) msg += `❌ 이메일 미등록: ${noEmail.length}건\n`;
+  if (noBirthday.length) msg += `❌ 생년월일 미등록: ${noBirthday.length}건\n`;
+  if (noStudent.length) msg += `❌ 학번 미등록: ${noStudent.length}건\n`;
+
+  // 스킵 항목 상세 표시 (많으면 앞 10개만)
+  const skippedAll = [...noStudent, ...noBirthday, ...noEmail];
+  if (skippedAll.length > 0) {
+    msg += `\n📋 스킵될 학번 상세 (${skippedAll.length}건):\n`;
+    const showFirst = skippedAll.slice(0, 15);
+    msg += showFirst.map(p => `  · ${p.label}`).join('\n');
+    if (skippedAll.length > 15) msg += `\n  ... 외 ${skippedAll.length - 15}건 (콘솔 확인)`;
+  }
+
+  // 이미 발급된 학생 상세도 표시 (경고)
+  if (alreadyIssued.length > 0) {
+    msg += `\n\n⚠️ 이미 발급 이력이 있는 학생 (${alreadyIssued.length}건):\n`;
+    const showFirst = alreadyIssued.slice(0, 10);
+    msg += showFirst.map(p => `  · ${p.label}`).join('\n');
+    if (alreadyIssued.length > 10) msg += `\n  ... 외 ${alreadyIssued.length - 10}건 (콘솔 확인)`;
+  }
+
+  msg += `\n\n발송 가능한 ${okList.length}건에 대해 진행할까요?`;
+
+  if (okList.length === 0) {
+    console.log('[일괄 발급] 스킵 상세:', skippedAll);
+    return toast('발송 가능한 항목이 없습니다.', true);
+  }
+
+  // 전체 스킵 리스트 콘솔에 미리 출력
+  if (skippedAll.length) console.log('[일괄 발급 - 스킵 상세]', skippedAll.map(p => p.label));
+  if (alreadyIssued.length) console.log('[일괄 발급 - 이미 발급 이력]', alreadyIssued.map(p => p.label));
+
+  if (!confirm(msg)) return;
+
+  // 수강확인서 override 날짜 (일괄에도 동일 적용)
+  let periodOverride = null;
+  if (type === '수강확인서') {
+    const ovStart = $('certPeriodStart').value;
+    const ovEnd = $('certPeriodEnd').value;
+    const toKor = (s) => { const [y,m,d] = s.split('-'); return `${y}. ${parseInt(m)}. ${parseInt(d)}`; };
+    if (ovStart && ovEnd) periodOverride = { start: toKor(ovStart), end: toKor(ovEnd) };
+  }
+
+  // 실제 발송
+  let ok = 0, err = 0;
+  const errList = [];
+  for (const p of okList) {
+    try {
+      await certIssueOne(p.stu, type, p.stu.birthday, courseName, purpose, issuer, mode, p.email, format, periodOverride);
+      ok++;
+      if (mode === 'email') await new Promise(r => setTimeout(r, 500));
+    } catch (e) {
+      err++;
+      errList.push(`${p.sid} ${p.stu.name}: ${e.message}`);
+    }
+  }
+  toast(`일괄 ${modeLabel} 완료: 성공 ${ok} / 스킵 ${skippedAll.length} / 실패 ${err}`);
+  if (errList.length) console.log('[일괄 발급 - 실패 상세]', errList);
+};
+
+window.certReset = () => {
+  $('certStudentId').value = '';
+  $('certName').value = '';
+  $('certClassName').value = '';
+  $('certBirthday').value = '';
+  $('certCourse').value = '';
+  $('certPurpose').value = '';
+  $('certEmail').value = '';
+  $('certStudentInfo').textContent = '';
+  $('certBirthdayNote').textContent = '';
+  $('certBulkIds').value = '';
+  certUpdatePreview();
+};
+
+// 이력에서 재출력 (기존 번호 그대로, 새 이력 안 남김)
+window.reprintCert = async (certId) => {
+  const cert = certificates.find(c => c.id === certId);
+  if (!cert) return toast('증명서를 찾을 수 없습니다.', true);
+  const at = cert.issuedAt?.toDate ? cert.issuedAt.toDate() : new Date();
+  const todayStr = `${at.getFullYear()}년 ${at.getMonth()+1}월 ${at.getDate()}일`;
+  const html = renderCertHTML({
+    number: cert.number, type: cert.type,
+    name: cert.studentName, studentId: cert.studentId,
+    birthday: cert.birthday || '', className: cert.className || '',
+    course: cert.course,
+    periodStart: cert.periodStart, periodEnd: cert.periodEnd,
+    purpose: cert.purpose, issuedDate: todayStr,
+    certText: CERT_TEXTS[cert.type],
+  });
+  try {
+    await certOutputPrint(html, {
+      type: cert.type, number: cert.number,
+      studentName: cert.studentName, studentId: cert.studentId
+    });
+  } catch (e) {
+    console.error(e);
+  }
+};
+
+// 이력 렌더링
+function renderCertHistory() {
+  const q = ($('certSearch')?.value || '').trim().toLowerCase();
+  let list = certificates.slice();
+  if (q) list = list.filter(c =>
+    (c.number||'').toLowerCase().includes(q) ||
+    (c.studentId||'').toLowerCase().includes(q) ||
+    (c.studentName||'').toLowerCase().includes(q));
+  if (!list.length) {
+    $('certHistoryBody').innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--t3);padding:30px">발급 이력이 없습니다.</td></tr>`;
+    return;
+  }
+  $('certHistoryBody').innerHTML = list.map(c => {
+    const at = c.issuedAt?.toDate ? c.issuedAt.toDate() : (c.issuedAt || new Date());
+    const dateStr = at instanceof Date ? at.toLocaleDateString('ko') : '';
+    // 이메일 발송 상태
+    let emailCell;
+    if (c.emailSentAt) {
+      const sentAt = c.emailSentAt?.toDate ? c.emailSentAt.toDate() : c.emailSentAt;
+      const sentStr = sentAt ? new Date(sentAt).toLocaleString('ko',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '';
+      emailCell = `<div style="display:flex;flex-direction:column;gap:2px;align-items:center">
+        <span class="bdg bdg-gold" style="font-size:11px">${sentStr}</span>
+        <button class="btn btn-ghost btn-sm" onclick="openEmailSend('${c.id}')" style="font-size:11px">재발송</button>
+      </div>`;
+    } else {
+      emailCell = `<button class="btn btn-gold btn-sm" onclick="openEmailSend('${c.id}')" style="font-size:11px">✉ 발송</button>`;
+    }
+    return `<tr>
+      <td><strong>${c.number||''}</strong></td>
+      <td>${dateStr}</td>
+      <td>${c.type||''}</td>
+      <td>${c.studentId||''}</td>
+      <td>${c.studentName||''}</td>
+      <td style="font-size:12px">${c.course||''}</td>
+      <td>${c.purpose||''}</td>
+      <td>${c.issuer||''}</td>
+      <td class="center">
+        <div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="reprintCert('${c.id}')" title="재출력" style="font-size:11px">🖨️</button>
+          ${emailCell}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// 이력 엑셀 내보내기
+window.exportCertHistory = () => {
+  const q = ($('certSearch')?.value || '').trim().toLowerCase();
+  let list = certificates.slice();
+  if (q) list = list.filter(c =>
+    (c.number||'').toLowerCase().includes(q) ||
+    (c.studentId||'').toLowerCase().includes(q) ||
+    (c.studentName||'').toLowerCase().includes(q));
+  const rows = [['증명서번호','발급일','종류','학번','성명','반','생년월일','과정','수업기간','용도','발급자','발송이메일','발송시각']];
+  list.forEach(c => {
+    const at = c.issuedAt?.toDate ? c.issuedAt.toDate() : c.issuedAt;
+    const dateStr = at ? new Date(at).toLocaleDateString('ko') : '';
+    const sentAt = c.emailSentAt?.toDate ? c.emailSentAt.toDate() : c.emailSentAt;
+    const sentStr = sentAt ? new Date(sentAt).toLocaleString('ko') : '';
+    rows.push([
+      c.number||'', dateStr, c.type||'',
+      c.studentId||'', c.studentName||'', c.className||'',
+      c.birthday||'', c.course||'',
+      (c.periodStart && c.periodEnd) ? `${c.periodStart} ~ ${c.periodEnd}` : '',
+      c.purpose||'', c.issuer||'',
+      c.emailTo||'', sentStr
+    ]);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:14},{wch:12},{wch:12},{wch:8},{wch:10},{wch:8},{wch:12},{wch:20},{wch:24},{wch:20},{wch:10},{wch:24},{wch:16}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '증명서 이력');
+  const today = new Date();
+  const fname = `QUETTA_증명서이력_${today.getFullYear()}${String(today.getMonth()+1).padStart(2,'0')}${String(today.getDate()).padStart(2,'0')}.xlsx`;
+  XLSX.writeFile(wb, fname);
+  toast(`엑셀 다운로드 완료 (${list.length}건)`);
+};
+
+// 생년월일 일괄 임포트 헬퍼 (콘솔에서 호출)
+// mappings: [{ studentId: '5435', birthday: '2005-03-15' }, ...]
+window.__importBirthdays = async (mappings) => {
+  if (!Array.isArray(mappings) || !mappings.length) {
+    console.error('❌ mappings 배열이 비어있습니다.');
+    return;
+  }
+  console.log(`%c[생년월일 일괄 임포트] ${mappings.length}건 시작`, 'color:#00B2BE;font-weight:bold');
+  const notFound = [], errors = [];
+  let ok = 0;
+  const CHUNK = 10;
+  for (let i = 0; i < mappings.length; i += CHUNK) {
+    const batch = mappings.slice(i, i + CHUNK);
+    await Promise.all(batch.map(async m => {
+      const stu = students.find(s => String(s.studentId) === String(m.studentId));
+      if (!stu) { notFound.push(m); return; }
+      try {
+        await updateDoc(doc(db,'students',stu.id), { birthday: m.birthday, updatedAt: serverTimestamp() });
+        stu.birthday = m.birthday;
+        ok++;
+      } catch (e) { errors.push({...m, error: e.message}); }
+    }));
+    console.log(`  진행: ${Math.min(i+CHUNK, mappings.length)} / ${mappings.length} (성공 ${ok}, 미매칭 ${notFound.length}, 에러 ${errors.length})`);
+  }
+  console.log(`%c[완료] 성공 ${ok} / 미매칭 ${notFound.length} / 에러 ${errors.length}`, 'color:#00B2BE;font-weight:bold');
+  if (notFound.length) console.table(notFound);
+  if (errors.length) console.table(errors);
+  return { ok, notFound: notFound.length, errors: errors.length };
+};
+
+// ============================================================
+// 이메일 발송 (그룹웨어 반자동 - 복사·붙여넣기 방식)
+// ============================================================
+
+let emailConfig = null; // { appsScriptUrl, subjectTpl, bodyTpl, mailUrl, sheetUrl, idColumn, emailColumn }
+let sheetEmailCache = null; // { studentId: email } 캐시
+
+// 기본 이메일 템플릿
+const DEFAULT_SUBJECT_TPL = '[강남대성기숙 QUETTA] {종류} 발송 안내 ({학생명})';
+const DEFAULT_BODY_TPL = `안녕하세요, {학생명} 학생/학부모님.
+강남대성기숙 QUETTA 행정실입니다.
+
+요청하신 증명서를 발송드립니다. 첨부 {첨부형식}를 확인해 주시기 바랍니다.
+
+▪ 증명서 종류: {종류}
+▪ 증명서 번호: {번호}
+▪ 발급일: {발급일}
+▪ 용도: {용도}
+
+문의사항이 있으시면 회신 주시기 바랍니다.
+감사합니다.
+
+Good Better Best
+강남대성기숙 QUETTA`;
+
+// 템플릿 플레이스홀더 치환 헬퍼
+function fillEmailTemplate(tpl, data) {
+  return (tpl || '')
+    .replace(/\{학생명\}/g, data.name || '')
+    .replace(/\{학번\}/g, data.studentId || '')
+    .replace(/\{반\}/g, data.className || '')
+    .replace(/\{종류\}/g, data.type || '')
+    .replace(/\{번호\}/g, data.number || '')
+    .replace(/\{과정\}/g, data.course || '')
+    .replace(/\{수업기간\}/g, data.period || '')
+    .replace(/\{용도\}/g, data.purpose || '')
+    .replace(/\{발급일\}/g, data.issuedDate || '')
+    .replace(/\{첨부형식\}/g, data.attachLabel || 'PDF');
+}
+
+// 설정 로드 (renderCert에서 호출)
+async function loadEmailConfig() {
+  try {
+    const snap = await getDoc(doc(db, 'certConfig', 'emailConfig'));
+    emailConfig = snap.exists() ? snap.data() : null;
+    if (emailConfig) {
+      $('ejsAppsScriptUrl').value = emailConfig.appsScriptUrl || '';
+      $('ejsSubjectTpl').value = emailConfig.subjectTpl || DEFAULT_SUBJECT_TPL;
+      $('ejsBodyTpl').value = emailConfig.bodyTpl || DEFAULT_BODY_TPL;
+      $('ejsMailUrl').value = emailConfig.mailUrl || '';
+      $('ejsSheetUrl').value = emailConfig.sheetUrl || '';
+      $('ejsIdCol').value = emailConfig.idColumn || '';
+      $('ejsEmailCol').value = emailConfig.emailColumn || '';
+      $('emailConfigStatus').innerHTML = '<span style="color:var(--g700)">✓ 설정 로드됨</span>';
+    } else {
+      // 기본 템플릿 미리 채움
+      $('ejsSubjectTpl').value = DEFAULT_SUBJECT_TPL;
+      $('ejsBodyTpl').value = DEFAULT_BODY_TPL;
+    }
+  } catch (e) {
+    console.warn('[emailConfig] load fail:', e.message);
+  }
+}
+
+window.saveEmailConfig = async () => {
+  const cfg = {
+    appsScriptUrl: $('ejsAppsScriptUrl').value.trim(),
+    subjectTpl: $('ejsSubjectTpl').value.trim() || DEFAULT_SUBJECT_TPL,
+    bodyTpl: $('ejsBodyTpl').value || DEFAULT_BODY_TPL,
+    mailUrl: $('ejsMailUrl').value.trim(),
+    sheetUrl: $('ejsSheetUrl').value.trim(),
+    idColumn: $('ejsIdCol').value.trim(),
+    emailColumn: $('ejsEmailCol').value.trim(),
+    updatedAt: serverTimestamp(),
+  };
+  try {
+    await setDoc(doc(db, 'certConfig', 'emailConfig'), cfg);
+    emailConfig = cfg;
+    sheetEmailCache = null;
+    $('emailConfigStatus').innerHTML = '<span style="color:var(--g700)">✓ 저장되었습니다</span>';
+    toast('이메일 설정이 저장되었습니다.');
+  } catch (e) {
+    toast('저장 실패: ' + e.message, true);
+  }
+};
+
+// Apps Script 연결 테스트 (GET 요청)
+window.testAppsScript = async () => {
+  const url = $('ejsAppsScriptUrl').value.trim();
+  if (!url) return toast('Apps Script URL을 먼저 입력하세요.', true);
+  $('emailConfigStatus').innerHTML = '<span style="color:var(--t2)">Apps Script 연결 중...</span>';
+  try {
+    const resp = await fetch(url, { method: 'GET' });
+    const text = await resp.text();
+    let data;
+    try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    if (data.status) {
+      $('emailConfigStatus').innerHTML = `<span style="color:var(--g700)">✓ Apps Script 정상 (${data.status})</span>`;
+      toast('Apps Script 연결 성공');
+    } else {
+      $('emailConfigStatus').innerHTML = `<span style="color:#E74C3C">응답이 예상과 다름: ${text.substring(0,80)}</span>`;
+    }
+  } catch (e) {
+    $('emailConfigStatus').innerHTML = `<span style="color:#E74C3C">연결 실패: ${e.message}</span>`;
+  }
+};
+
+// Apps Script를 통해 이메일 발송 (공통 헬퍼)
+async function sendEmailViaAppsScript({ toEmail, subject, body, attachmentName, attachmentBase64 }) {
+  if (!emailConfig?.appsScriptUrl) throw new Error('Apps Script URL이 설정되지 않았습니다.');
+  const payload = { toEmail, subject, body };
+  if (attachmentName && attachmentBase64) {
+    payload.attachmentName = attachmentName;
+    payload.attachmentBase64 = attachmentBase64;
+  }
+  const resp = await fetch(emailConfig.appsScriptUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' }, // Apps Script는 text/plain으로 받는 게 안전 (CORS preflight 회피)
+    body: JSON.stringify(payload),
+    redirect: 'follow',
+  });
+  const text = await resp.text();
+
+  // Case 1: 빈 응답 (opaque CORS 응답) - Apps Script는 실행됐지만 응답 못 읽음. 성공으로 처리.
+  if (!text || text.trim() === '') {
+    console.log('[sendEmail] 빈 응답 (opaque). HTTP', resp.status, '- 발송 성공으로 처리');
+    return { ok: true, note: 'opaque response' };
+  }
+
+  // Case 2: JSON 응답 - 정상 파싱
+  try {
+    const data = JSON.parse(text);
+    if (data.ok === false) throw new Error(data.error || 'Apps Script 오류');
+    return data;
+  } catch (parseErr) {
+    // JSON 파싱 실패 (HTML 로그인 페이지 등) - HTTP 상태로 판단
+    if (resp.ok) {
+      // 200번대인데 JSON이 아니면 Apps Script 응답 형식 이상. 로그만 남기고 성공 처리.
+      console.warn('[sendEmail] 비-JSON 응답이지만 HTTP OK, 성공으로 처리:', text.substring(0, 100));
+      return { ok: true, note: 'non-json but ok' };
+    }
+    // 400/500번대 - 진짜 오류
+    throw new Error(`Apps Script HTTP ${resp.status}: ${text.substring(0, 120)}`);
+  }
+}
+
+// 시트 URL에서 ID 추출
+function extractSheetId(input) {
+  if (!input) return null;
+  const m = input.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  return m ? m[1] : input.trim();
+}
+
+// 구글 시트 CSV 조회
+async function loadSheetEmails() {
+  if (sheetEmailCache) return sheetEmailCache;
+  if (!emailConfig?.sheetUrl || !emailConfig?.idColumn || !emailConfig?.emailColumn) {
+    throw new Error('시트 URL과 컬럼명이 설정되지 않았습니다.');
+  }
+  const sheetId = extractSheetId(emailConfig.sheetUrl);
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`시트 조회 실패 (${resp.status}) — 공유 설정을 확인하세요`);
+  const text = await resp.text();
+  const rows = text.split('\n').map(l => {
+    const cells = [];
+    let cur = '', inQ = false;
+    for (const ch of l) {
+      if (ch === '"') inQ = !inQ;
+      else if (ch === ',' && !inQ) { cells.push(cur.trim()); cur = ''; }
+      else cur += ch;
+    }
+    cells.push(cur.trim());
+    return cells.map(c => c.replace(/^"|"$/g, '').replace(/""/g, '"'));
+  });
+  if (!rows.length) throw new Error('빈 시트입니다.');
+  const header = rows[0];
+  const idIdx = header.findIndex(h => h === emailConfig.idColumn);
+  const emailIdx = header.findIndex(h => h === emailConfig.emailColumn);
+  if (idIdx < 0) throw new Error(`"${emailConfig.idColumn}" 컬럼을 찾을 수 없습니다.`);
+  if (emailIdx < 0) throw new Error(`"${emailConfig.emailColumn}" 컬럼을 찾을 수 없습니다.`);
+  const map = {};
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    const id = (r[idIdx] || '').trim();
+    const email = (r[emailIdx] || '').trim();
+    if (id && email) map[id] = email;
+  }
+  sheetEmailCache = map;
+  return map;
+}
+
+window.testSheetLookup = async () => {
+  try {
+    $('emailConfigStatus').innerHTML = '<span style="color:var(--t2)">시트 조회 중...</span>';
+    sheetEmailCache = null;
+    const map = await loadSheetEmails();
+    const count = Object.keys(map).length;
+    $('emailConfigStatus').innerHTML = `<span style="color:var(--g700)">✓ 조회 성공 — ${count}건의 학번-이메일 매핑</span>`;
+    toast(`시트 조회 성공: ${count}건`);
+  } catch (e) {
+    $('emailConfigStatus').innerHTML = `<span style="color:#E74C3C">❌ ${e.message}</span>`;
+    toast('시트 조회 실패: ' + e.message, true);
+  }
+};
+
+// 이메일 제목·본문 템플릿 생성 (모달 미리보기용, 하위호환)
+function buildEmailContent(cert) {
+  const at = cert.issuedAt?.toDate ? cert.issuedAt.toDate() : new Date();
+  const dateStr = `${at.getFullYear()}년 ${at.getMonth()+1}월 ${at.getDate()}일`;
+  const period = `${cert.periodStart || ''} ~ ${cert.periodEnd || ''}`;
+  const data = {
+    name: cert.studentName, studentId: cert.studentId,
+    className: cert.className || '',
+    type: cert.type, number: cert.number,
+    course: cert.course, period,
+    purpose: cert.purpose, issuedDate: dateStr,
+    attachLabel: 'PDF',
+  };
+  const subject = fillEmailTemplate(emailConfig?.subjectTpl || DEFAULT_SUBJECT_TPL, data);
+  const body = fillEmailTemplate(emailConfig?.bodyTpl || DEFAULT_BODY_TPL, data);
+  return { subject, body };
+}
+
+// 발송 모달 열기
+window.openEmailSend = async (certId) => {
+  const cert = certificates.find(c => c.id === certId);
+  if (!cert) return toast('증명서를 찾을 수 없습니다.', true);
+  $('emailSendCertId').value = certId;
+  $('emailSendCertInfo').innerHTML = `<strong>${cert.number}</strong> · ${cert.type} · ${cert.issuedAt?.toDate ? cert.issuedAt.toDate().toLocaleDateString('ko') : ''}`;
+  $('emailSendStudentInfo').innerHTML = `<strong>${cert.studentName}</strong> · ${cert.studentId} · ${cert.className||''}반`;
+  const { subject, body } = buildEmailContent(cert);
+  $('emailSendSubject').value = subject;
+  $('emailSendBody').value = body;
+  $('emailSendTo').value = cert.emailTo || '';
+  $('emailSendSource').textContent = cert.emailTo ? '(이전 발송 이메일)' : '';
+  $('emailSendStatus').textContent = '';
+  openOverlay('emailSendOverlay');
+
+  // 시트에서 이메일 자동 조회 (설정돼있을 때만)
+  if (emailConfig?.sheetUrl && !cert.emailTo) {
+    try {
+      const map = await loadSheetEmails();
+      const email = map[cert.studentId];
+      if (email) {
+        $('emailSendTo').value = email;
+        $('emailSendSource').innerHTML = '<span style="color:var(--g700)">— 시트에서 자동 조회됨</span>';
+      } else {
+        $('emailSendSource').innerHTML = '<span style="color:#E74C3C">— 시트에 학번 없음</span>';
+      }
+    } catch (e) {
+      $('emailSendSource').innerHTML = '<span style="color:#E74C3C">— 시트 조회 실패</span>';
+      $('emailSendStatus').textContent = e.message;
+    }
+  }
+};
+
+// 필드 복사
+window.copyEmailField = async (fieldId) => {
+  const el = $(fieldId);
+  if (!el) return;
+  try {
+    await navigator.clipboard.writeText(el.value);
+    toast('복사되었습니다.');
+  } catch (e) {
+    // fallback
+    el.select();
+    document.execCommand('copy');
+    toast('복사되었습니다.');
+  }
+};
+
+// 그룹웨어 열기
+window.openGroupwareMail = () => {
+  const url = emailConfig?.mailUrl?.trim();
+  if (!url) return toast('그룹웨어 URL이 설정되지 않았습니다.', true);
+  window.open(url, '_blank');
+};
+
+// 이 증명서 PDF 다운로드 (발송 모달용, 이력 항목 기준으로 재생성)
+window.downloadCertPdfForEmail = async () => {
+  const certId = $('emailSendCertId').value;
+  const cert = certificates.find(c => c.id === certId);
+  if (!cert) return toast('증명서를 찾을 수 없습니다.', true);
+  $('emailSendStatus').innerHTML = '<span style="color:var(--t2)">PDF 생성 중...</span>';
+  try {
+    const at = cert.issuedAt?.toDate ? cert.issuedAt.toDate() : new Date();
+    const todayStr = `${at.getFullYear()}년 ${at.getMonth()+1}월 ${at.getDate()}일`;
+    const html = renderCertHTML({
+      number: cert.number, type: cert.type,
+      name: cert.studentName, studentId: cert.studentId,
+      birthday: cert.birthday || '', className: cert.className || '',
+      course: cert.course,
+      periodStart: cert.periodStart, periodEnd: cert.periodEnd,
+      purpose: cert.purpose, issuedDate: todayStr,
+      certText: CERT_TEXTS[cert.type],
+    });
+    $('certPdfContainer').innerHTML = html;
+    const canvas = await html2canvas($('certPdfContainer').firstElementChild, { scale: 2, backgroundColor: '#fff' });
+    const imgData = canvas.toDataURL('image/png');
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
+    pdf.save(`${cert.studentId}_${cert.studentName}_${cert.type}_${cert.number}.pdf`);
+    $('certPdfContainer').innerHTML = '';
+    $('emailSendStatus').innerHTML = '<span style="color:var(--g700)">✓ PDF 다운로드 완료</span>';
+  } catch (e) {
+    console.error(e);
+    $('emailSendStatus').innerHTML = `<span style="color:#E74C3C">PDF 생성 실패: ${e.message}</span>`;
+  }
+};
+
+// 발송 완료 기록 (그룹웨어에서 발송 완료 후 사용자가 클릭)
+// 증명서 이메일 자동 발송 (Apps Script 사용)
+window.sendCertEmailAuto = async () => {
+  const certId = $('emailSendCertId').value;
+  const toEmail = $('emailSendTo').value.trim();
+  const subject = $('emailSendSubject').value.trim();
+  const body = $('emailSendBody').value;
+  if (!toEmail || !toEmail.includes('@')) return toast('유효한 이메일을 입력하세요.', true);
+  const cert = certificates.find(c => c.id === certId);
+  if (!cert) return toast('증명서를 찾을 수 없습니다.', true);
+  if (!emailConfig?.appsScriptUrl) return toast('Apps Script URL이 설정되지 않았습니다.', true);
+  const attachFormat = $R.querySelector('input[name="emailSendFormat"]:checked')?.value || 'pdf';
+
+  $('emailSendStatus').innerHTML = `<span style="color:var(--t2)">${attachFormat === 'image' ? '이미지' : 'PDF'} 생성 및 발송 중...</span>`;
+  try {
+    // 캔버스 재생성
+    const at = cert.issuedAt?.toDate ? cert.issuedAt.toDate() : new Date();
+    const todayStr = `${at.getFullYear()}년 ${at.getMonth()+1}월 ${at.getDate()}일`;
+    const html = renderCertHTML({
+      number: cert.number, type: cert.type,
+      name: cert.studentName, studentId: cert.studentId,
+      birthday: cert.birthday || '', className: cert.className || '',
+      course: cert.course,
+      periodStart: cert.periodStart, periodEnd: cert.periodEnd,
+      purpose: cert.purpose, issuedDate: todayStr,
+      certText: CERT_TEXTS[cert.type],
+    });
+    $('certPdfContainer').innerHTML = html;
+    const canvas = await html2canvas($('certPdfContainer').firstElementChild, { scale: 2, backgroundColor: '#fff' });
+    const imgDataUrl = canvas.toDataURL('image/png');
+    $('certPdfContainer').innerHTML = '';
+
+    // 첨부 파일 준비 (PDF 또는 PNG)
+    let attachmentBase64, attachmentName;
+    if (attachFormat === 'image') {
+      attachmentBase64 = imgDataUrl.split(',')[1];
+      attachmentName = `${cert.studentId}_${cert.studentName}_${cert.type}_${cert.number}.png`;
+    } else {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      pdf.addImage(imgDataUrl, 'PNG', 0, 0, 210, 297);
+      attachmentBase64 = pdf.output('datauristring').split(',')[1];
+      attachmentName = `${cert.studentId}_${cert.studentName}_${cert.type}_${cert.number}.pdf`;
+    }
+
+    // Apps Script로 발송
+    await sendEmailViaAppsScript({
+      toEmail, subject, body,
+      attachmentName, attachmentBase64,
+    });
+
+    // 발송 완료 이력 저장
+    await updateDoc(doc(db, 'certificates', certId), {
+      emailSentAt: serverTimestamp(),
+      emailTo: toEmail,
+    });
+    cert.emailSentAt = new Date();
+    cert.emailTo = toEmail;
+
+    toast('이메일 자동 발송 완료');
+    closeOverlay('emailSendOverlay');
+    if (certTab === 'history') renderCertHistory();
+  } catch (e) {
+    console.error(e);
+    $('emailSendStatus').innerHTML = `<span style="color:#E74C3C">발송 실패: ${e.message}</span>`;
+    toast('발송 실패: ' + e.message, true);
+  }
+};
+
+window.markEmailSent = async () => {
+  const certId = $('emailSendCertId').value;
+  const toEmail = $('emailSendTo').value.trim();
+  if (!toEmail || !toEmail.includes('@')) return toast('받는 이메일을 확인해주세요.', true);
+  const cert = certificates.find(c => c.id === certId);
+  if (!cert) return toast('증명서를 찾을 수 없습니다.', true);
+  try {
+    await updateDoc(doc(db, 'certificates', certId), {
+      emailSentAt: serverTimestamp(),
+      emailTo: toEmail,
+    });
+    cert.emailSentAt = new Date();
+    cert.emailTo = toEmail;
+    toast('발송 완료로 기록되었습니다.');
+    closeOverlay('emailSendOverlay');
+    if (certTab === 'history') renderCertHistory();
+  } catch (e) {
+    toast('기록 실패: ' + e.message, true);
+  }
+};
+
+// ============================================================
+// 문서 일괄발송 (EmailJS + Excel + PDF)
+// ============================================================
+
+let bulkExcelMap = null;    // { studentId: { email, name } }
+let bulkPdfFiles = [];      // [{ file, filename, studentId }]
+
+function renderBulkSend() {
+  if (!emailConfig) loadEmailConfig();
+}
+
+// 문서 일괄발송용 샘플 엑셀 다운로드
+window.downloadBulkSampleExcel = () => {
+  const rows = [
+    ['학번', '이름', '이메일'],
+    ['5001', '홍길동', 'parent1@gmail.com'],
+    ['5002', '김철수', 'parent2@naver.com'],
+    ['5003', '이영희', 'parent3@daum.net'],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:10}, {wch:12}, {wch:28}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '학번-이메일');
+  XLSX.writeFile(wb, '문서일괄발송_샘플.xlsx');
+  toast('샘플 엑셀이 다운로드되었습니다.');
+};
+
+// 파일명 마지막 4자리 숫자 = 학번
+function extractStudentIdFromFilename(filename) {
+  const m = filename.replace(/\.[^.]+$/, '').match(/(\d{4})$/);
+  return m ? m[1] : null;
+}
+
+window.handleBulkExcel = (input) => {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      let rows = [];
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        const text = new TextDecoder('utf-8').decode(e.target.result);
+        rows = text.split(/\r?\n/).map(l => l.split(',').map(c => c.trim()));
+      } else {
+        const wb = XLSX.read(e.target.result, {type:'array'});
+        rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:''});
+      }
+      if (!rows.length) return toast('빈 파일입니다.', true);
+      let headerRow = -1, idIdx = -1, emailIdx = -1, nameIdx = -1;
+      for (let i = 0; i < Math.min(rows.length, 10); i++) {
+        const r = rows[i].map(c => String(c).trim());
+        const ai = r.findIndex(c => c === '학번');
+        const bi = r.findIndex(c => c === '이메일' || c === '이메일 주소' || c.toLowerCase() === 'email');
+        if (ai >= 0 && bi >= 0) {
+          headerRow = i; idIdx = ai; emailIdx = bi;
+          nameIdx = r.findIndex(c => c === '이름' || c === '성명' || c.toLowerCase() === 'name');
+          break;
+        }
+      }
+      if (headerRow < 0) return toast('헤더에 "학번"과 "이메일" 컬럼이 필요합니다.', true);
+      bulkExcelMap = {};
+      for (let i = headerRow + 1; i < rows.length; i++) {
+        const r = rows[i];
+        const sid = String(r[idIdx] || '').trim();
+        const email = String(r[emailIdx] || '').trim();
+        const name = nameIdx >= 0 ? String(r[nameIdx] || '').trim() : '';
+        if (sid && email) bulkExcelMap[sid] = { email, name };
+      }
+      const count = Object.keys(bulkExcelMap).length;
+      $('bulkExcelStatus').innerHTML = `<span style="color:var(--g700)">✓ ${file.name} — ${count}건의 학번-이메일 매핑</span>`;
+      refreshBulkPreview();
+    } catch (err) {
+      toast('엑셀 파싱 실패: ' + err.message, true);
+      console.error(err);
+    }
+    input.value = '';
+  };
+  reader.readAsArrayBuffer(file);
+};
+
+window.handleBulkPdfs = (input) => {
+  const files = Array.from(input.files || []);
+  if (!files.length) return;
+  bulkPdfFiles = files.map(f => ({
+    file: f,
+    filename: f.name,
+    studentId: extractStudentIdFromFilename(f.name),
+  }));
+  const withId = bulkPdfFiles.filter(p => p.studentId).length;
+  const withoutId = bulkPdfFiles.length - withId;
+  $('bulkPdfStatus').innerHTML = withoutId
+    ? `<span style="color:var(--g700)">✓ ${files.length}개 파일</span> <span style="color:#E74C3C">(학번 추출 실패: ${withoutId}개)</span>`
+    : `<span style="color:var(--g700)">✓ ${files.length}개 파일 (모두 학번 추출 성공)</span>`;
+  refreshBulkPreview();
+  input.value = '';
+};
+
+function refreshBulkPreview() {
+  const ready = $('bulkSendReadyInfo');
+  if (!bulkPdfFiles.length) {
+    $('bulkPreviewCard').style.display = 'none';
+    if (ready) ready.textContent = '파일과 엑셀 업로드 후 발송 가능합니다.';
+    return;
+  }
+  const matches = bulkPdfFiles.map(p => {
+    if (!p.studentId) return { ...p, email: '', name: '', status: 'no-id' };
+    const excelMatch = bulkExcelMap ? bulkExcelMap[p.studentId] : null;
+    const stuFromApp = students.find(s => String(s.studentId) === p.studentId);
+    const email = excelMatch?.email || '';
+    const name = excelMatch?.name || stuFromApp?.name || '';
+    let status = 'ok';
+    if (!bulkExcelMap) status = 'no-excel';
+    else if (!email) status = 'no-email';
+    return { ...p, email, name, status };
+  });
+  window._bulkMatches = matches;
+  const okCount = matches.filter(m => m.status === 'ok').length;
+  $('bulkPreviewCount').textContent = `— ${matches.length}건 중 ${okCount}건 발송 가능`;
+  if (ready) {
+    if (okCount === 0) ready.innerHTML = `<span style="color:#E74C3C">발송 가능한 항목이 없습니다. 엑셀·PDF 매칭을 확인하세요.</span>`;
+    else ready.innerHTML = `<span style="color:var(--g700)">✓ ${okCount}건 발송 준비 완료</span>`;
+  }
+  $('bulkPreviewBody').innerHTML = matches.map(m => {
+    let badge;
+    if (m.status === 'ok') badge = '<span class="bdg bdg-gold">발송 준비</span>';
+    else if (m.status === 'no-excel') badge = '<span class="bdg bdg-red">엑셀 없음</span>';
+    else if (m.status === 'no-id') badge = '<span class="bdg bdg-red">학번 추출 실패</span>';
+    else badge = '<span class="bdg bdg-red">엑셀에 학번 없음</span>';
+    return `<tr>
+      <td style="font-size:12px">${m.filename}</td>
+      <td>${m.studentId || '-'}</td>
+      <td>${m.name || '-'}</td>
+      <td>${m.email || '<span style="color:var(--t3)">-</span>'}</td>
+      <td class="center">${badge}</td>
+    </tr>`;
+  }).join('');
+  $('bulkPreviewCard').style.display = '';
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+window.bulkSendExecute = async () => {
+  if (!emailConfig?.appsScriptUrl) {
+    return toast('Apps Script URL이 설정되지 않았습니다. 증명서 발급 페이지 → 이메일 발송 설정에서 등록하세요.', true);
+  }
+  const matches = window._bulkMatches || [];
+  const toSend = matches.filter(m => m.status === 'ok');
+  if (!toSend.length) return toast('발송할 수 있는 항목이 없습니다.', true);
+  const subject = $('bulkSubject').value.trim();
+  const bodyTemplate = $('bulkBody').value;
+  if (!subject) return toast('제목을 입력하세요.', true);
+  if (!confirm(`${toSend.length}건을 순차 발송합니다. 계속할까요?\n(중간 취소는 어렵습니다)`)) return;
+
+  $('bulkLogCard').style.display = '';
+  $('bulkLogBody').innerHTML = '<div>발송 시작...</div>';
+  const logEl = $('bulkLogBody');
+  const log = (msg, color='var(--t2)') => {
+    logEl.innerHTML += `<div style="color:${color}">${msg}</div>`;
+    logEl.scrollTop = logEl.scrollHeight;
+  };
+
+  let ok = 0, err = 0;
+  for (const m of toSend) {
+    try {
+      const body = bodyTemplate
+        .replace(/\{학번\}/g, m.studentId)
+        .replace(/\{이름\}/g, m.name || '')
+        .replace(/\{파일명\}/g, m.filename);
+      const pdfBase64 = await readFileAsBase64(m.file);
+      await sendEmailViaAppsScript({
+        toEmail: m.email,
+        subject: subject,
+        body: body,
+        attachmentName: m.filename,
+        attachmentBase64: pdfBase64,
+      });
+      log(`✓ ${m.studentId} ${m.name} → ${m.email}`, 'var(--g700)');
+      ok++;
+      await new Promise(r => setTimeout(r, 500)); // Brevo rate limit 배려
+    } catch (e) {
+      log(`✗ ${m.studentId} ${m.name} → ${m.email} — ${e.message}`, '#E74C3C');
+      err++;
+    }
+  }
+  log(`<br><strong>완료: 성공 ${ok}건 / 실패 ${err}건</strong>`, 'var(--g900)');
+  toast(`일괄 발송 완료 — 성공 ${ok} / 실패 ${err}`);
+};
+
+
+  // ── QSA 입구 ──
+  return {
+    async boot(profile) {
+      me = { email: profile.email };
+      meDoc = { role: 'staff', name: profile.name || profile.email };
+      await reload();
+      showScreen('appScreen');
+      switchTab('vCert');
+    },
+    reload,
+  };
+}
