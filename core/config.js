@@ -19,6 +19,15 @@ export const firebaseConfig = {
 // 연결하는 기존 프로젝트들 (웹 설정값만. 비밀 키는 넣지 않음)
 //  · enroll: 등록현황 원본(quetta-2ea94). 지금은 "데이터 가져오기"에서 읽기 전용으로만 사용
 export const linkedProjects = {
+  //  · forest: 노동숲(workers-forest). 홈의 "이번 주 교무 일정"에서 읽기 전용으로만 사용
+  forest: {
+    apiKey: "AIzaSyCO8sBUNHVxUWcxATzF-aH1jw2T58soMHQ",
+    authDomain: "workers-forest.firebaseapp.com",
+    projectId: "workers-forest",
+    storageBucket: "workers-forest.firebasestorage.app",
+    messagingSenderId: "939967968083",
+    appId: "1:939967968083:web:1568dc80234631618827a6",
+  },
   enroll: {
     apiKey: "AIzaSyAtIteJqFLAjZk-OOaj3nkkZVD77vYFZ4o",
     authDomain: "quetta-2ea94.firebaseapp.com",
@@ -52,6 +61,7 @@ export const menu = [
   { group: "유틸리티" },
   { id: "cert",        label: "증명서 발급", icon: "file-badge",       ready: true, loader: () => import("../modules/cert.js") },
   { id: "cert-import", label: "증명서 기존 이력 가져오기", icon: "download-cloud", ready: true, hidden: true, perm: "cert", loader: () => import("../modules/cert-import.js") },
+  { id: "sms",         label: "연간 발송 문자", icon: "message-square", ready: true, loader: () => import("../modules/sms.js") },
   { group: "설정" },
   { id: "accounts",    label: "계정 관리", icon: "users",              ready: true, adminOnly: true, loader: () => import("../modules/accounts.js") },
   { id: "settings",    label: "연결 설정", icon: "link",               ready: true, adminOnly: true, loader: () => import("../modules/settings.js") },
