@@ -2,7 +2,7 @@
 // 모든 모듈은 export async function mount(el, ctx) 형태로 만듭니다.
 // onSnapshot 등 구독 해제 함수는 반드시 ctx.track(unsub) 으로 넘기세요.
 // 메뉴를 떠나면 router 가 전부 해제합니다 → 한 모듈의 리스너가 할당량을 계속 쓰는 일을 막습니다.
-import { flatMenu } from "./config.js";
+import { flatMenu, canSee } from "./config.js";
 
 let cleanups = [];
 let currentId = null;
@@ -18,14 +18,18 @@ export function stopRouter() {
   currentId = null;
 }
 
-export function routeId() {
+// 주소의 메뉴 ID → 실제로 열 메뉴. 없거나 준비 중이거나 권한이 없으면 홈.
+export function routeId(profile) {
   const id = location.hash.replace(/^#/, "");
   const item = flatMenu.find((m) => m.id === id && m.ready);
-  return item ? id : "home";
+  if (!item) return { id: "home", denied: false };
+  if (!canSee(profile, item)) return { id: "home", denied: true };
+  return { id, denied: false };
 }
 
-export async function render(view, ctxBase, onChange) {
-  const id = routeId();
+export async function render(view, ctxBase, onChange, onDenied) {
+  const { id, denied } = routeId(ctxBase.profile);
+  if (denied) onDenied?.();
   if (id === currentId) return;
   runCleanups();
   currentId = id;
