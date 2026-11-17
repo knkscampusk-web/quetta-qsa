@@ -49,7 +49,7 @@
   <main class="login" id="login" hidden>
     <div class="login-card">
       <h1 class="wordmark">QSA</h1>
-      <p class="login-sub">QUETTA 교무 시스템입니다.<br>교무 직원 Google 계정으로 로그인하세요.</p>
+      <p class="login-sub">QUETTA 교무 시스템입니다.<br>등록된 Google 계정으로 로그인하세요.</p>
       <button class="btn btn-lg btn-brand" id="btnLogin" type="button"><i data-lucide="log-in"></i>Google 계정으로 로그인</button>
       <div class="notice" id="loginMsg" role="alert" hidden></div>
       <p class="login-foot">허용목록에 등록된 계정만 사용할 수 있습니다.</p>
@@ -71,6 +71,7 @@
       <nav class="nav" id="nav"></nav>
     </aside>
     <div class="scrim" id="scrim"></div>
+    <div class="qsa-toast" id="toast" role="status" hidden></div>
 
     <div class="frame">
       <header class="topbar">
@@ -98,7 +99,7 @@
   </div>
 
   <script type="module">
-    import { firebaseConfig, menu, flatMenu } from "./core/config.js";
+    import { firebaseConfig, menu, flatMenu, canSee } from "./core/config.js";
 
     // 설정값이 비어 있으면 Firebase 를 건드리기 전에 안내하고 멈춤
     const unset = Object.values(firebaseConfig).some((v) => String(v).startsWith("PASTE_"));
@@ -148,16 +149,22 @@
       return el;
     }
 
-    function buildNav() {
+    function buildNav(profile) {
       const nav = $("nav");
       nav.replaceChildren();
+      let groupEl = null;      // 아직 붙이지 않은 그룹 제목
+      const put = (...els) => {
+        if (groupEl) { nav.append(groupEl); groupEl = null; }
+        nav.append(...els);
+      };
       for (const m of menu) {
         if (m.group) {
-          const g = document.createElement("div");
-          g.className = "nav-group";
-          g.textContent = m.group;
-          nav.append(g);
+          groupEl = document.createElement("div");
+          groupEl.className = "nav-group";
+          groupEl.textContent = m.group;
         } else if (m.children) {
+          const kids = m.children.filter((c) => canSee(profile, c));
+          if (!kids.length) continue;
           const btn = document.createElement("button");
           btn.type = "button";
           btn.className = "nav-item";
@@ -168,18 +175,28 @@
           const sub = document.createElement("div");
           sub.className = "nav-sub";
           sub.hidden = true;
-          m.children.forEach((c) => sub.append(navLink(c)));
+          kids.forEach((c) => sub.append(navLink(c)));
           btn.addEventListener("click", () => {
             const open = btn.getAttribute("aria-expanded") !== "true";
             btn.setAttribute("aria-expanded", String(open));
             sub.hidden = !open;
           });
-          nav.append(btn, sub);
-        } else if (!m.hidden) {
-          nav.append(navLink(m));
+          put(btn, sub);
+        } else if (!m.hidden && canSee(profile, m)) {
+          put(navLink(m));
         }
       }
       icons();
+    }
+
+    // 짧은 안내 (권한 없음 등)
+    let toastTimer = null;
+    function toast(msg) {
+      const t = $("toast");
+      t.textContent = msg;
+      t.hidden = false;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { t.hidden = true; }, 3200);
     }
 
     // ── 현재 메뉴 표시 + 브레드크럼 + 제목 ──
@@ -244,20 +261,24 @@
     }
 
     let onHash = null;
-    function showShell(user) {
+    function showShell(user, profile) {
       $("boot").hidden = true;
       $("login").hidden = true;
       $("shell").hidden = false;
       const name = user.displayName || user.email.split("@")[0];
       $("userName").textContent = name;
-      $("userEmail").textContent = user.email;
+      const roleLabel = profile.role === "admin" ? "관리자" : "일반";
+      $("userEmail").textContent = [user.email, [profile.dept, roleLabel].filter(Boolean).join(" · ")].join("\n");
       $("avatar").textContent = name.trim().charAt(0);
       $("year").textContent = new Date().getFullYear();
       startClock();
-      buildNav();
-      const ctx = { auth, db, user };
+      buildNav(profile);
+      const ctx = { auth, db, user, profile };
       if (onHash) window.removeEventListener("hashchange", onHash);
-      onHash = () => render($("view"), ctx, onRoute);
+      onHash = () => render($("view"), ctx, onRoute, () => {
+        history.replaceState(null, "", "#home");
+        toast("이 메뉴에 대한 권한이 없습니다. 필요하면 교무 관리자에게 요청하세요.");
+      });
       window.addEventListener("hashchange", onHash);
       onHash();
     }
@@ -298,8 +319,8 @@
       }
     });
 
-    watchAuth(({ state, user, email, error }) => {
-      if (state === "allowed") return showShell(user);
+    watchAuth(({ state, user, profile, email, error }) => {
+      if (state === "allowed") return showShell(user, profile);
       if (onHash) { window.removeEventListener("hashchange", onHash); onHash = null; }
       if (state === "denied") return showLogin(`${email} 계정은 QSA 허용목록에 없습니다. 교무 담당자에게 등록을 요청하세요.`, true);
       if (state === "error") return showLogin(`권한을 확인하지 못했습니다. 보안 규칙 배포 여부를 확인하세요. (${error.code || error.message})`, true);
