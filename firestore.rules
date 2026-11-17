@@ -42,11 +42,23 @@ service cloud.firestore {
       allow read, write: if isQsaAdmin() && request.auth.uid == uid;
     }
 
-    // ── 1단계에서 모듈별 컬렉션을 여기에 추가합니다 ──
-    // 예)
-    // match /scholarship/{docId} {
-    //   allow read, write: if isQsaAdmin();
-    // }
+    // QSA 공통 기록 (데이터 가져오기 이력 등)
+    match /qsa_meta/{docId} {
+      allow read, write: if isQsaAdmin();
+    }
+
+    // ── 등록현황 (quetta-2ea94 에서 복사해 온 데이터) ──
+    match /quettaReg_daily/{docId} {
+      allow read, write: if isQsaAdmin();
+    }
+    match /quettaReg_config/{docId} {
+      allow read, write: if isQsaAdmin();
+    }
+    match /quettaReg_rawlog/{docId} {
+      allow read, write: if isQsaAdmin();
+    }
+
+    // ── 다음 모듈의 컬렉션도 이렇게 하나씩 추가합니다 ──
 
     // 그 외 경로는 모두 차단
     match /{document=**} {
