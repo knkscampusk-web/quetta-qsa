@@ -167,7 +167,7 @@ export async function mount(el, ctx) {
         <button class="btn btn-line" type="button" data-pick>엑셀 올리기(예비)</button>
         <input type="file" class="file-input" accept=".xlsx,.xls,.csv" data-file tabindex="-1" aria-hidden="true">
       </div>
-      <p class="notice notice-error" data-seal-warn hidden>직인 이미지가 등록되지 않았습니다. 관리자가 '관리 › 연결 설정'에서 직인을 올려야 증명서에 찍힙니다.</p>
+      <p class="notice notice-error" data-seal-warn hidden>직인 이미지가 없습니다. 레포 맨 위에 seal.png를 올리거나, 관리자가 '관리 › 연결 설정'에서 직인을 등록해야 증명서에 찍힙니다.</p>
       <p class="notice notice-error" data-counter-warn hidden>발급번호 설정이 아직 없습니다. 기존 앱과 번호가 겹치지 않도록, 실제 발급 전에 "기존 발급 이력 가져오기"를 먼저 실행해 주세요.</p>
       <div data-preview hidden style="margin-top:var(--s4)"></div>
     </div>`;
@@ -201,6 +201,11 @@ export async function mount(el, ctx) {
     const sealSnap = await getDoc(doc(db, "qsa_settings", "seal"));
     sealUrl = sealSnap.exists() ? (sealSnap.data().dataUrl || "") : "";
   } catch (e) { console.warn("[직인] 불러오기 실패", e.code || e.message); }
+  // DB 에 직인이 없으면 레포 맨 위의 seal.png 사용 (원본 앱과 같은 방식)
+  if (!sealUrl) {
+    const ok = await fetch("seal.png", { method: "HEAD", cache: "no-store" }).then((r) => r.ok).catch(() => false);
+    if (ok) sealUrl = new URL("seal.png", location.href).href;
+  }
   card.querySelector("[data-seal-warn]").hidden = !!sealUrl;
 
   const api = await start(root, {
