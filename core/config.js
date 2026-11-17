@@ -54,6 +54,7 @@ export const menu = [
   { id: "lecture",     label: "특강",      icon: "presentation",       ready: false },
   { group: "관리" },
   { id: "accounts",    label: "계정 관리", icon: "users",              ready: true, adminOnly: true, loader: () => import("../modules/accounts.js") },
+  { id: "settings",    label: "연결 설정", icon: "link",               ready: true, adminOnly: true, loader: () => import("../modules/settings.js") },
 ];
 
 // 라우터용: 펼침 메뉴의 하위 항목까지 한 줄로 편 목록 (상위 그룹·메뉴 이름 포함)
