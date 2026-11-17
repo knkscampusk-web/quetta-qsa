@@ -38,14 +38,15 @@ export const linkedProjects = {
 // 새 모듈을 이식하면 loader 를 채우고 ready:true 로 바꾸면 됩니다.
 export const menu = [
   { id: "home",        label: "홈",        icon: "house",              ready: true,  loader: () => import("../modules/home.js") },
+  { group: "등록·수강" },
+  { id: "enroll",        label: "등록현황",        icon: "clipboard-list", ready: true, loader: () => import("../modules/enroll.js") },
+  { id: "enroll-import", label: "등록현황 데이터 가져오기", icon: "download-cloud", ready: true, hidden: true, loader: () => import("../modules/enroll-import.js") },
   { group: "1단계 이식 예정" },
   { id: "scholarship", label: "장학",      icon: "award",              ready: false },
   { id: "cost",        label: "비용 관리", icon: "receipt",            ready: false },
   { id: "seating",     label: "좌석 배치", icon: "armchair",           ready: false },
   { id: "assign",      label: "수업 배정", icon: "calendar-range",     ready: false },
   { group: "2·3단계 연결 예정" },
-  { id: "enroll",        label: "등록현황",        icon: "clipboard-list", ready: true, loader: () => import("../modules/enroll.js") },
-  { id: "enroll-import", label: "등록현황 데이터 가져오기", icon: "download-cloud", ready: true, hidden: true, loader: () => import("../modules/enroll-import.js") },
   { id: "cert",        label: "증명서",    icon: "file-badge",         ready: false },
   { id: "textbook",    label: "교재 입고", icon: "package-check",      ready: false },
   { id: "lecture",     label: "특강",      icon: "presentation",       ready: false },
