@@ -372,6 +372,9 @@ svg.lucide { width: 16px; height: 16px; stroke-width: 2; flex: none; }
 
 .muted { color: var(--ink-3); margin: 0; }
 
+/* 파일 선택 입력: display:none 대신 화면에서만 숨김 (일부 브라우저는 숨긴 입력의 선택 창을 열지 않음) */
+.file-input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; clip: rect(0 0 0 0); pointer-events: none; }
+
 /* 짧은 안내 */
 .qsa-toast {
   position: fixed; left: 50%; bottom: var(--s8); transform: translateX(-50%); z-index: 60;
