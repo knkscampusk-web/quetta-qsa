@@ -34,6 +34,7 @@ export const linkedProjects = {
 //  · { id, label, icon, ready, loader } → 메뉴 하나
 //  · { label, icon, children: [...] }   → 펼침 메뉴 (하위 항목은 id/label/ready/loader)
 // ready:false 인 항목은 "준비 중"으로 비활성 표시됩니다.
+// hidden:true 인 항목은 사이드바에 보이지 않고 다른 화면의 버튼으로만 들어갑니다.
 // 새 모듈을 이식하면 loader 를 채우고 ready:true 로 바꾸면 됩니다.
 export const menu = [
   { id: "home",        label: "홈",        icon: "house",              ready: true,  loader: () => import("../modules/home.js") },
@@ -43,13 +44,8 @@ export const menu = [
   { id: "seating",     label: "좌석 배치", icon: "armchair",           ready: false },
   { id: "assign",      label: "수업 배정", icon: "calendar-range",     ready: false },
   { group: "2·3단계 연결 예정" },
-  { label: "등록현황", icon: "clipboard-list", children: [
-    { id: "enroll-import", label: "데이터 가져오기", ready: true, loader: () => import("../modules/enroll-import.js") },
-    { id: "enroll-input",  label: "일일명단 입력",   ready: false },
-    { id: "enroll-dash",   label: "대시보드",        ready: false },
-    { id: "enroll-hist",   label: "지난 등록",       ready: false },
-    { id: "enroll-set",    label: "설정",            ready: false },
-  ] },
+  { id: "enroll",        label: "등록현황",        icon: "clipboard-list", ready: true, loader: () => import("../modules/enroll.js") },
+  { id: "enroll-import", label: "등록현황 데이터 가져오기", icon: "download-cloud", ready: true, hidden: true, loader: () => import("../modules/enroll-import.js") },
   { id: "cert",        label: "증명서",    icon: "file-badge",         ready: false },
   { id: "textbook",    label: "교재 입고", icon: "package-check",      ready: false },
   { id: "lecture",     label: "특강",      icon: "presentation",       ready: false },
