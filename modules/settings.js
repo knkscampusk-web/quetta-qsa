@@ -15,6 +15,12 @@ export const LINKS = [
     hint: "정규 마스터 시트 안의 Apps Script(cert_roster.gs)를 웹 앱으로 배포한 주소. 매년 새 마스터 사본에서 다시 배포한 뒤 여기 주소를 바꿉니다.",
     test: true,
   },
+  {
+    key: "smsArchive",
+    label: "연간 발송 문자 · 시트 Apps Script",
+    hint: "연간 발송 문자 구글시트 안의 Apps Script(sms_archive.gs)를 웹 앱으로 배포한 주소입니다.",
+    test: true,
+  },
 ];
 
 export async function getLink(db, key) {
@@ -101,8 +107,12 @@ export async function mount(el, ctx) {
         const res = await fetch(url, { method: "POST", body: JSON.stringify({ idToken }) });
         const d = await res.json();
         if (!d.ok) throw new Error(d.error || "응답 오류");
-        const active = (d.students || []).filter((x) => x.status === "재원").length;
-        say(`연결 성공 · 탭 '${d.tab}' · 학생 ${(d.students || []).length}명 (재원 ${active}명). 저장은 따로 눌러야 합니다.`);
+        if (Array.isArray(d.students)) {
+          const active = d.students.filter((x) => x.status === "재원").length;
+          say(`연결 성공 · 탭 '${d.tab}' · 학생 ${d.students.length}명 (재원 ${active}명). 저장은 따로 눌러야 합니다.`);
+        } else {
+          say(`연결 성공 · 문자 ${(d.rows || []).length}건 · 탭 ${(d.tabs || []).map((x) => x.name).join(", ")}. 저장은 따로 눌러야 합니다.`);
+        }
       } catch (e) {
         say(`연결 실패: ${e.message}`, true);
       } finally {
