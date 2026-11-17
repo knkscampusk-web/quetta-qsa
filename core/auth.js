@@ -1,4 +1,4 @@
-// 로그인 + 교무 허용목록 확인
+// 로그인 + 허용목록(계정·권한) 확인
 // 화면 쪽 확인은 "안내용"이고, 실제 접근 차단은 firestore.rules 가 합니다.
 import {
   GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged,
@@ -24,11 +24,19 @@ export function logout() {
   return signOut(auth);
 }
 
-// 허용목록: qsa_admins/{이메일 소문자} 문서가 있어야 통과
-export async function isAllowed(user) {
-  if (!user?.email || !user.emailVerified) return false;
+// 허용목록: qsa_admins/{이메일 소문자} 문서가 있어야 통과. 있으면 계정 정보(역할·부서·메뉴)를 돌려줌
+export async function loadProfile(user) {
+  if (!user?.email || !user.emailVerified) return null;
   const snap = await getDoc(doc(db, "qsa_admins", user.email.toLowerCase()));
-  return snap.exists();
+  if (!snap.exists()) return null;
+  const d = snap.data();
+  return {
+    email: user.email.toLowerCase(),
+    name: d.name || "",
+    dept: d.dept || "",
+    role: d.role === "admin" ? "admin" : "member",
+    menus: Array.isArray(d.menus) ? d.menus : [],
+  };
 }
 
 // 상태 변화 구독: cb({ state: "signedOut" | "allowed" | "denied" | "error", user, error })
@@ -44,7 +52,8 @@ export function watchAuth(cb) {
       return cb(reason || { state: "signedOut" });
     }
     try {
-      if (await isAllowed(user)) return cb({ state: "allowed", user });
+      const profile = await loadProfile(user);
+      if (profile) return cb({ state: "allowed", user, profile });
       pendingReason = { state: "denied", email: user.email };
     } catch (error) {
       pendingReason = { state: "error", error };
