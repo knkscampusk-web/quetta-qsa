@@ -1,4 +1,4 @@
-// 관리 › 연결 설정 (관리자만)
+// 관리 › 연결 설정 (관리자만) — 연결 주소 + 증명서 직인
 //  · 매년 개강 때 바뀌는 외부 연결 주소(Apps Script 웹 앱 등)를 코드 수정 없이 여기서 바꿉니다.
 //  · 저장 위치: qsa_settings/links  { <key>: { url, updatedAt, updatedBy } }
 //  · 쓰기는 관리자만, 읽기는 그 주소를 쓰는 메뉴 권한이 있는 계정만 (firestore.rules)
@@ -111,4 +111,60 @@ export async function mount(el, ctx) {
     };
     list.append(card);
   }
+
+  // ── 직인 (증명서용) ──
+  const SEAL_DOC = ["qsa_settings", "seal"];
+  const MAX_BYTES = 600 * 1024;
+  const seal = document.createElement("section");
+  seal.className = "card";
+  seal.innerHTML = `
+    <div class="card-head"><h2>증명서 직인</h2></div>
+    <div class="card-body">
+      <p class="muted" style="margin-bottom:var(--s3);line-height:1.6">직인 이미지는 공개 주소에 두지 않고 QSA DB에 보관합니다. 증명서 권한이 있는 계정만 불러올 수 있습니다. 배경이 투명한 PNG를 권장합니다(600KB 이하).</p>
+      <div style="display:flex;gap:var(--s5);align-items:center;flex-wrap:wrap">
+        <div style="width:120px;height:120px;border:1px dashed var(--line);border-radius:var(--r-sm);display:grid;place-items:center;background:rgba(255,255,255,.7)">
+          <img data-seal-img alt="직인 미리보기" style="max-width:110px;max-height:110px;display:none">
+          <span class="muted" data-seal-empty style="font-size:12px">없음</span>
+        </div>
+        <div>
+          <label class="btn" style="cursor:pointer"><span>직인 이미지 올리기</span><input type="file" accept="image/png,image/jpeg,image/webp" data-seal-file hidden></label>
+          <p class="muted" data-seal-meta style="font-size:13px;margin-top:var(--s2)"></p>
+          <p class="muted" data-seal-msg style="font-size:13px;margin-top:var(--s1)"></p>
+        </div>
+      </div>
+    </div>`;
+  list.append(seal);
+  const img = seal.querySelector("[data-seal-img]");
+  const empty = seal.querySelector("[data-seal-empty]");
+  const smeta = seal.querySelector("[data-seal-meta]");
+  const smsg = seal.querySelector("[data-seal-msg]");
+  const showSeal = (d) => {
+    if (d?.dataUrl) { img.src = d.dataUrl; img.style.display = "block"; empty.style.display = "none"; }
+    smeta.textContent = d?.dataUrl ? `마지막 변경 ${d.updatedAt?.toDate?.().toLocaleString("ko-KR") || "-"} · ${d.updatedBy || ""}` : "아직 등록된 직인이 없습니다.";
+  };
+  try {
+    const s = await getDoc(doc(db, ...SEAL_DOC));
+    showSeal(s.exists() ? s.data() : null);
+  } catch (e) {
+    smeta.textContent = `불러오지 못했습니다 (${e.code || e.message}).`;
+  }
+  seal.querySelector("[data-seal-file]").addEventListener("change", async (ev) => {
+    const file = ev.target.files[0];
+    ev.target.value = "";
+    if (!file) return;
+    smsg.style.color = "";
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) { smsg.textContent = "PNG·JPG·WEBP 이미지만 올릴 수 있습니다."; smsg.style.color = "var(--danger)"; return; }
+    if (file.size > MAX_BYTES) { smsg.textContent = "600KB 이하 이미지로 올려주세요."; smsg.style.color = "var(--danger)"; return; }
+    const dataUrl = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
+    if (!confirm("이 이미지를 증명서 직인으로 저장할까요? 기존 직인은 바뀝니다.")) return;
+    try {
+      await setDoc(doc(db, ...SEAL_DOC), { dataUrl, updatedAt: serverTimestamp(), updatedBy: profile.email });
+      const s = await getDoc(doc(db, ...SEAL_DOC));
+      showSeal(s.data());
+      smsg.textContent = "저장했습니다. 증명서 화면을 다시 열면 적용됩니다.";
+    } catch (e) {
+      smsg.textContent = `저장하지 못했습니다 (${e.code || e.message}).`;
+      smsg.style.color = "var(--danger)";
+    }
+  });
 }
