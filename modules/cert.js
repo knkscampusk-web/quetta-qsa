@@ -164,8 +164,8 @@ export async function mount(el, ctx) {
         <span class="muted" data-roster-info style="flex:1">불러오는 중…</span>
         <a class="btn btn-line" href="#cert-import">기존 발급 이력 가져오기</a>
         <button class="btn" type="button" data-pull>정규 마스터에서 불러오기</button>
-        <label class="btn btn-line" style="cursor:pointer"><span>엑셀 올리기(예비)</span>
-          <input type="file" accept=".xlsx,.xls,.csv" data-file hidden></label>
+        <button class="btn btn-line" type="button" data-pick>엑셀 올리기(예비)</button>
+        <input type="file" class="file-input" accept=".xlsx,.xls,.csv" data-file tabindex="-1" aria-hidden="true">
       </div>
       <p class="notice notice-error" data-seal-warn hidden>직인 이미지가 등록되지 않았습니다. 관리자가 '관리 › 연결 설정'에서 직인을 올려야 증명서에 찍힙니다.</p>
       <p class="notice notice-error" data-counter-warn hidden>발급번호 설정이 아직 없습니다. 기존 앱과 번호가 겹치지 않도록, 실제 발급 전에 "기존 발급 이력 가져오기"를 먼저 실행해 주세요.</p>
@@ -298,6 +298,7 @@ export async function mount(el, ctx) {
   });
 
   // 엑셀 올리기 (예비)
+  card.querySelector("[data-pick]").addEventListener("click", () => card.querySelector("[data-file]").click());
   card.querySelector("[data-file]").addEventListener("change", async (ev) => {
     const file = ev.target.files[0];
     ev.target.value = "";
