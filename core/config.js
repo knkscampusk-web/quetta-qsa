@@ -16,9 +16,18 @@ export const firebaseConfig = {
   appId: "1:669499495003:web:b4d262a6123945e45d257e"
 };
 
-// 나중에(2·3단계) 연결할 기존 프로젝트들. 지금은 비워 둡니다.
-// 예: { textbook: { apiKey: "...", projectId: "quetta-textbook", databaseURL: "..." } }
-export const linkedProjects = {};
+// 연결하는 기존 프로젝트들 (웹 설정값만. 비밀 키는 넣지 않음)
+//  · enroll: 등록현황 원본(quetta-2ea94). 지금은 "데이터 가져오기"에서 읽기 전용으로만 사용
+export const linkedProjects = {
+  enroll: {
+    apiKey: "AIzaSyAtIteJqFLAjZk-OOaj3nkkZVD77vYFZ4o",
+    authDomain: "quetta-2ea94.firebaseapp.com",
+    projectId: "quetta-2ea94",
+    storageBucket: "quetta-2ea94.firebasestorage.app",
+    messagingSenderId: "742368924282",
+    appId: "1:742368924282:web:db7dabb31ff08ea97521c3"
+  },
+};
 
 // 사이드바 메뉴 (DSA 처럼 그룹 제목 + 메뉴 + 펼침 하위 메뉴)
 //  · { group: "제목" }                 → 작은 그룹 제목
@@ -34,7 +43,13 @@ export const menu = [
   { id: "seating",     label: "좌석 배치", icon: "armchair",           ready: false },
   { id: "assign",      label: "수업 배정", icon: "calendar-range",     ready: false },
   { group: "2·3단계 연결 예정" },
-  { id: "enroll",      label: "등록 보고", icon: "clipboard-list",     ready: false },
+  { label: "등록현황", icon: "clipboard-list", children: [
+    { id: "enroll-import", label: "데이터 가져오기", ready: true, loader: () => import("../modules/enroll-import.js") },
+    { id: "enroll-input",  label: "일일명단 입력",   ready: false },
+    { id: "enroll-dash",   label: "대시보드",        ready: false },
+    { id: "enroll-hist",   label: "지난 등록",       ready: false },
+    { id: "enroll-set",    label: "설정",            ready: false },
+  ] },
   { id: "cert",        label: "증명서",    icon: "file-badge",         ready: false },
   { id: "textbook",    label: "교재 입고", icon: "package-check",      ready: false },
   { id: "lecture",     label: "특강",      icon: "presentation",       ready: false },
