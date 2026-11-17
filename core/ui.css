@@ -219,9 +219,9 @@ svg.lucide { width: 16px; height: 16px; stroke-width: 2; flex: none; }
 .nav-item:hover { color: var(--ink); background: rgba(255, 255, 255, .6); }
 .nav-item[aria-current="page"] { color: var(--teal-ink); font-weight: 700; background: rgba(255, 255, 255, .82); box-shadow: 0 1px 2px rgba(35, 31, 32, .06); }
 .nav-item[aria-current="page"]::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 0 3px 3px 0; background: var(--teal); }
-.nav-item[aria-current="page"] svg.lucide { color: var(--teal); }
 .nav-item[aria-disabled="true"] { color: var(--ink-3); opacity: .75; cursor: default; }
 .nav-item[aria-disabled="true"]:hover { background: none; }
+.nav-item .initial { display: none; }
 .nav-item .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-item .soon { font-size: 11px; color: var(--ink-3); }
 .nav-item .chev { color: var(--ink-3); transition: transform .15s; }
@@ -243,6 +243,12 @@ svg.lucide { width: 16px; height: 16px; stroke-width: 2; flex: none; }
 .side-mini .nav-sub { display: none; }
 .side-mini .side-profile { margin: var(--s3) var(--s2) 0; padding: var(--s3) 0; }
 .side-mini .nav-item { justify-content: center; padding: 0; }
+/* 접힌 사이드바: 아이콘 대신 메뉴 첫 글자 */
+.side-mini .nav-item .initial {
+  display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+  font-size: 13px; font-weight: 700; background: rgba(255, 255, 255, .6); color: var(--ink-2);
+}
+.side-mini .nav-item[aria-current="page"] .initial { background: var(--teal); color: #fff; }
 
 /* 오른쪽 프레임 */
 .frame { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -361,6 +367,9 @@ svg.lucide { width: 16px; height: 16px; stroke-width: 2; flex: none; }
 /* ══════════ 모바일 ══════════ */
 .scrim { display: none; }
 @media (max-width: 900px) {
+  .side-mini .nav-item .initial { display: none; }
+  .side-mini .nav-item .label, .side-mini .nav-group { display: revert; }
+  .side-mini .nav-item { justify-content: flex-start; padding: 0 var(--s3); }
   .side { position: fixed; left: 0; top: 0; z-index: 40; transform: translateX(-100%); transition: transform .2s; width: var(--side-w) !important; background: var(--glass-strong); }
   .side-open .side { transform: none; }
   .side-open .scrim { display: block; position: fixed; inset: 0; z-index: 30; background: rgba(35, 31, 32, .3); }
