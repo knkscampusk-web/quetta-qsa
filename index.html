@@ -136,7 +136,8 @@
       if (m.ready) el.href = `#${m.id}`;
       else el.setAttribute("aria-disabled", "true");
       el.title = m.label;
-      el.innerHTML = `${m.icon ? `<i data-lucide="${m.icon}"></i>` : ""}<span class="label"></span>`;
+      el.innerHTML = `<span class="initial" aria-hidden="true"></span><span class="label"></span>`;
+      el.querySelector(".initial").textContent = m.label.trim().charAt(0);
       el.querySelector(".label").textContent = m.label;
       if (!m.ready) {
         const s = document.createElement("small");
@@ -161,7 +162,8 @@
           btn.type = "button";
           btn.className = "nav-item";
           btn.setAttribute("aria-expanded", "false");
-          btn.innerHTML = `<i data-lucide="${m.icon}"></i><span class="label"></span><i class="chev" data-lucide="chevron-left"></i>`;
+          btn.innerHTML = `<span class="initial" aria-hidden="true"></span><span class="label"></span><i class="chev" data-lucide="chevron-left"></i>`;
+          btn.querySelector(".initial").textContent = m.label.trim().charAt(0);
           btn.querySelector(".label").textContent = m.label;
           const sub = document.createElement("div");
           sub.className = "nav-sub";
