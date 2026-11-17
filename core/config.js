@@ -48,7 +48,8 @@ export const menu = [
   { id: "seating",     label: "좌석 배치", icon: "armchair",           ready: false },
   { id: "assign",      label: "수업 배정", icon: "calendar-range",     ready: false },
   { group: "2·3단계 연결 예정" },
-  { id: "cert",        label: "증명서 발급", icon: "file-badge",       ready: false, loader: () => import("../modules/cert.js") },   // 원본 연결 확인 후 ready: true
+  { id: "cert",        label: "증명서 발급", icon: "file-badge",       ready: true, loader: () => import("../modules/cert.js") },
+  { id: "cert-import", label: "증명서 기존 이력 가져오기", icon: "download-cloud", ready: true, hidden: true, perm: "cert", loader: () => import("../modules/cert-import.js") },
   { id: "textbook",    label: "교재 입고", icon: "package-check",      ready: false },
   { id: "lecture",     label: "특강",      icon: "presentation",       ready: false },
   { group: "관리" },
