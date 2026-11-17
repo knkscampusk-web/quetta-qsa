@@ -44,7 +44,6 @@ export const menu = [
   { id: "enroll-import", label: "등록현황 데이터 가져오기", icon: "download-cloud", ready: true, hidden: true, perm: "enroll", loader: () => import("../modules/enroll-import.js") },
   { group: "1단계 이식 예정" },
   { id: "scholarship", label: "장학",      icon: "award",              ready: false },
-  { id: "cost",        label: "비용 관리", icon: "receipt",            ready: false },
   { id: "seating",     label: "좌석 배치", icon: "armchair",           ready: false },
   { id: "assign",      label: "수업 배정", icon: "calendar-range",     ready: false },
   { group: "2·3단계 연결 예정" },
