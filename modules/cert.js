@@ -10,6 +10,7 @@ import {
   query, orderBy, writeBatch, runTransaction, serverTimestamp, onSnapshot,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { CSS, MARKUP, start } from "./cert/legacy.js";
+import { getLink } from "./settings.js";
 
 const LIBS = [
   ["XLSX", "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"],
@@ -162,7 +163,8 @@ export async function mount(el, ctx) {
       <div class="toolbar" style="margin-bottom:0">
         <span class="muted" data-roster-info style="flex:1">불러오는 중…</span>
         <a class="btn btn-line" href="#cert-import">기존 발급 이력 가져오기</a>
-        <label class="btn" style="cursor:pointer"><span>DSA 원생 마스터 올리기</span>
+        <button class="btn" type="button" data-pull>정규 마스터에서 불러오기</button>
+        <label class="btn btn-line" style="cursor:pointer"><span>엑셀 올리기(예비)</span>
           <input type="file" accept=".xlsx,.xls,.csv" data-file hidden></label>
       </div>
       <p class="notice notice-error" data-counter-warn hidden>발급번호 설정이 아직 없습니다. 기존 앱과 번호가 겹치지 않도록, 실제 발급 전에 "기존 발급 이력 가져오기"를 먼저 실행해 주세요.</p>
@@ -211,49 +213,38 @@ export async function mount(el, ctx) {
     card.querySelector("[data-counter-warn]").hidden = c.exists();
   } catch (e) { /* 권한 오류는 원본 화면에서 안내 */ }
 
-  // ── 명단 올리기: 읽기 → 미리보기 → 반영 ──
-  card.querySelector("[data-file]").addEventListener("change", async (ev) => {
-    const file = ev.target.files[0];
-    ev.target.value = "";
-    if (!file) return;
-    preview.hidden = false;
-    preview.textContent = `파일을 읽는 중… (${file.name})`;
-    let parsed;
-    try {
-      parsed = parseDsa(await file.arrayBuffer());
-    } catch (e) {
-      preview.innerHTML = "";
-      const p = document.createElement("p"); p.style.color = "var(--danger)"; p.textContent = e.message;
-      preview.append(p);
-      return;
-    }
-    const { added, changed, removed, merged } = diffRoster(current, parsed.students);
+  // ── 명단 반영: 미리보기 → 반영 (마스터 불러오기·엑셀 올리기 공통) ──
+  function showPreview(students, skipped, sourceLabel) {
+    const { added, changed, removed, merged } = diffRoster(current, students);
     const size = JSON.stringify(merged).length;
+    preview.hidden = false;
     preview.innerHTML = `
+      <p class="muted" data-src style="margin-bottom:var(--s3)"></p>
       <div class="table-wrap"><table class="table">
         <thead><tr><th>읽은 학생</th><th>새로 추가</th><th>정보 변경</th><th>이번 명단에 없음</th><th>제외(등록포기·학번 없음)</th></tr></thead>
         <tbody><tr><td></td><td></td><td></td><td></td><td></td></tr></tbody></table></div>
       <p class="muted" data-note style="margin:var(--s3) 0"></p>
       <div class="toolbar" style="margin:0"><button class="btn" data-ok type="button">명단 반영</button><button class="btn btn-line" data-cancel type="button">취소</button></div>`;
+    preview.querySelector("[data-src]").textContent = `불러온 곳: ${sourceLabel}`;
     const tds = preview.querySelectorAll("tbody td");
-    [parsed.students.length, added.length, changed.length, removed.length, parsed.skipped].forEach((n, i) => { tds[i].textContent = `${n}명`; });
+    [students.length, added.length, changed.length, removed.length, skipped].forEach((n, i) => { tds[i].textContent = `${n}명`; });
     const note = preview.querySelector("[data-note]");
-    note.textContent = `저장 항목: 학번·성명·성별·반·생년월일·상태·입소일·퇴소일 (주소·연락처·성적 등은 저장하지 않음). 이번 명단에 없는 학생은 지우지 않고 '명단 외'로 남깁니다.`;
+    note.textContent = "저장 항목: 학번·성명·성별·반·생년월일·상태·입소일·퇴소일 (주소·연락처·성적 등은 저장하지 않음). 이번 명단에 없는 학생은 지우지 않고 '명단 외'로 남깁니다.";
     if (size > 900000) {
       note.textContent = "명단이 너무 커서 한 번에 저장할 수 없습니다(약 900KB 초과). 관리자에게 알려주세요.";
       note.style.color = "var(--danger)";
       preview.querySelector("[data-ok]").disabled = true;
     }
     preview.querySelector("[data-cancel]").onclick = () => { preview.hidden = true; preview.replaceChildren(); };
-    preview.querySelector("[data-ok]").onclick = async (b) => {
-      const btn = b.currentTarget;
+    preview.querySelector("[data-ok]").onclick = async (ev) => {
+      const btn = ev.currentTarget;
       btn.disabled = true;
       try {
         await setDoc(doc(db, ...ROSTER), {
           students: merged,
           updatedAt: serverTimestamp(),
           updatedBy: profile.email,
-          fileName: file.name.slice(0, 120),
+          fileName: sourceLabel.slice(0, 120),
         });
         await loadRosterInfo();
         await api.refresh();
@@ -265,5 +256,49 @@ export async function mount(el, ctx) {
         btn.disabled = false;
       }
     };
+  }
+  function showError(msg) {
+    preview.hidden = false;
+    preview.replaceChildren();
+    const p = document.createElement("p"); p.style.color = "var(--danger)"; p.textContent = msg;
+    preview.append(p);
+  }
+
+  // 정규 마스터에서 불러오기 (Apps Script, QSA 로그인 토큰으로 권한 확인)
+  card.querySelector("[data-pull]").addEventListener("click", async (ev) => {
+    const btn = ev.currentTarget;
+    btn.disabled = true;
+    let certRosterUrl = "";
+    try { certRosterUrl = await getLink(db, "certRoster"); } catch (e) { /* 아래에서 안내 */ }
+    if (!certRosterUrl) { btn.disabled = false; return showError("명단 불러오기 주소가 아직 없습니다. 관리자가 '관리 › 연결 설정'에서 정규 마스터 Apps Script 주소를 입력해야 합니다."); }
+    preview.hidden = false;
+    preview.textContent = "정규 마스터에서 불러오는 중…";
+    try {
+      const idToken = await ctx.auth.currentUser.getIdToken();
+      const res = await fetch(certRosterUrl, { method: "POST", body: JSON.stringify({ idToken }) });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error || "불러오지 못했습니다");
+      showPreview(data.students || [], data.skipped || 0, `정규 마스터 (${data.tab || "시트"})`);
+    } catch (e) {
+      console.error(e);
+      showError(`불러오지 못했습니다: ${e.message}`);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // 엑셀 올리기 (예비)
+  card.querySelector("[data-file]").addEventListener("change", async (ev) => {
+    const file = ev.target.files[0];
+    ev.target.value = "";
+    if (!file) return;
+    preview.hidden = false;
+    preview.textContent = `파일을 읽는 중… (${file.name})`;
+    try {
+      const parsed = parseDsa(await file.arrayBuffer());
+      showPreview(parsed.students, parsed.skipped, file.name);
+    } catch (e) {
+      showError(e.message);
+    }
   });
 }
