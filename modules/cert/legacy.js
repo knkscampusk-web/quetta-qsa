@@ -2,8 +2,8 @@
 // 원본: wrtpny5-beep/quetta-transfer/index.html
 // 발급·이력·설정 로직은 원본 그대로이며, 바뀐 점은 아래뿐입니다.
 //  · 로그인: 원본의 직원·담임 로그인 대신 QSA 로그인 (원본 로그인 화면·감시 미실행)
-//  · 데이터: 원본 DB(quetta-2ea94)를 QSA 연결 계층이 넘겨준 db 로 사용
-//  · 읽기: 증명서에 필요한 반·학생·발급 이력만 (전입 기록·일정·사용자·수능 기록은 읽지 않음)
+//  · 데이터: QSA DB. 학생 명단은 DSA 원생 마스터에서 올린 cert_roster/current (반 목록은 명단에서 생성)
+//  · 학생 문서 쓰기 안 함(DSA 가 기준), 퇴원·수료생은 수강확인서만 발급
 //  · document.* → 섀도 루트($R). PDF 생성용 컨테이너만 문서 쪽에 둠(html2canvas 호환)
 // 직접 고치기보다 원본을 고친 뒤 다시 변환하는 것을 권장합니다.
 /* eslint-disable */
@@ -22,6 +22,7 @@ export async function start($R, __QSA) {
   const signInWithEmailAndPassword = __noLogin, createUserWithEmailAndPassword = __noLogin, signInAnonymously = __noLogin;
   const signOut = async () => {}, onAuthStateChanged = __noop, setPersistence = async () => {};
   const browserSessionPersistence = null, browserLocalPersistence = null;
+  const __qsaSkip = async () => {};   // 학생 정보 수정은 DSA 에서 (QSA 는 저장하지 않음)
 
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -52,7 +53,7 @@ service cloud.firestore {
 
 const app = null, app2 = null;
 const auth = null, auth2 = null;            // QSA: 로그인은 QSA 가 담당 (원본 로그인 화면 사용 안 함)
-const db = __QSA.db;                        // QSA: 원본 DB(quetta-2ea94) 연결
+const db = __QSA.db;                        // QSA DB
 
 // ── 상태 ──
 let me, meDoc;
@@ -212,13 +213,16 @@ async function populateClassSelect() {
 }
 
 async function reload() {
-  // QSA: 증명서 화면에 필요한 것만 읽음 (반·학생·발급 이력). 일정·사용자·전입 기록·수능 기록은 읽지 않음
-  const [cs, sts] = await Promise.all([
-    getDocs(query(collection(db,'classes'), orderBy('name'))),
-    getDocs(query(collection(db,'students'), orderBy('classId'))),
-  ]);
-  classes  = cs.docs.map(d=>({id:d.id,...d.data()}));
-  students = sts.docs.map(d=>({id:d.id,...d.data()}));
+  // QSA: 학생 명단은 DSA 원생 마스터에서 올린 명단 문서 하나(cert_roster/current)에서 읽음 (읽기 1건)
+  const rs = await getDoc(doc(db,'cert_roster','current'));
+  const roster = rs.exists() ? (rs.data().students || []) : [];
+  students = roster.map(r => ({
+    id: String(r.studentId), studentId: String(r.studentId), name: r.name || '', gender: r.gender || '',
+    classId: r.cls || '', birthday: r.birthday || '', status: r.status || '', missing: !!r.missing,
+    enterDate: r.enterDate || '', leaveDate: r.leaveDate || '',
+  }));
+  const clsNames = [...new Set(students.map(s => s.classId).filter(Boolean))].sort();
+  classes = clsNames.map(n => ({ id: n, name: n }));
   schedules = []; users = []; records = []; suneungRecords = [];
   try {
     const cSnap = await getDocs(query(collection(db,'certificates'), orderBy('issuedAt','desc')));
@@ -1574,7 +1578,7 @@ window.saveStudent = async () => {
                round:$('stuRound').value,notes:$('stuNotes').value,updatedAt:serverTimestamp()};
   try {
     let sid=eid;
-    if(eid) { await updateDoc(doc(db,'students',eid),sData); }
+    if(eid) { await __qsaSkip(doc(db,'students',eid),sData); }
     else    { const ref=await addDoc(collection(db,'students'),{...sData,createdAt:serverTimestamp()}); sid=ref.id; }
     await setDoc(doc(db,'records',sid),{...rData,studentId:sid,classId},{merge:true});
     toast(eid?'수정되었습니다.':'추가되었습니다.');
@@ -2682,6 +2686,7 @@ async function certIssueOne(stu, type, bday, courseName, purpose, issuer, mode =
     ? { name: stu._className || manualClassName || '' }
     : (classes.find(c => c.id === stu.classId) || { name: manualClassName || '' });
   try {
+    if (type === '재원증명서' && !stu._manual && stu.status && stu.status !== '재원') throw new Error(`${stu.name}(${stu.status})은 재원증명서를 발급할 수 없습니다. 수강확인서로 발급해 주세요.`);
     // 1) 트랜잭션으로 채번
     const number = await runTransaction(db, async (t) => {
       const cRef = doc(db, 'certConfig', 'counter');
@@ -2696,7 +2701,7 @@ async function certIssueOne(stu, type, bday, courseName, purpose, issuer, mode =
 
     // 2) 학생 생년월일 저장 (학생관리에 등록된 학생만, 없었으면)
     if (!stu._manual && stu.id && (!stu.birthday || stu.birthday !== bday)) {
-      await updateDoc(doc(db,'students',stu.id), { birthday: bday, updatedAt: serverTimestamp() });
+      await __qsaSkip(doc(db,'students',stu.id), { birthday: bday, updatedAt: serverTimestamp() });
       stu.birthday = bday;
     }
 
@@ -3131,7 +3136,7 @@ window.__importBirthdays = async (mappings) => {
       const stu = students.find(s => String(s.studentId) === String(m.studentId));
       if (!stu) { notFound.push(m); return; }
       try {
-        await updateDoc(doc(db,'students',stu.id), { birthday: m.birthday, updatedAt: serverTimestamp() });
+        await __qsaSkip(doc(db,'students',stu.id), { birthday: m.birthday, updatedAt: serverTimestamp() });
         stu.birthday = m.birthday;
         ok++;
       } catch (e) { errors.push({...m, error: e.message}); }
@@ -3742,6 +3747,32 @@ window.bulkSendExecute = async () => {
 };
 
 
+  // ── QSA: 퇴원·수료생은 수강확인서만 ──
+  const __SUGANG = '수강확인서';
+  function __qsaTypeGuard() {
+    const sid = $('certStudentId')?.value.trim();
+    const stu = sid ? students.find(s => String(s.studentId) === sid) : null;
+    const sel = $('certType');
+    if (!sel) return;
+    const limited = !!stu && stu.status && stu.status !== '재원';
+    [...sel.options].forEach(o => { o.disabled = limited && o.value !== __SUGANG; });
+    if (limited && sel.value !== __SUGANG) {
+      sel.value = __SUGANG;
+      certUpdatePreview(); certTogglePeriodOverride?.();
+    }
+    const info = $('certStudentInfo');
+    if (stu && info) {
+      info.querySelector('[data-qsa-status]')?.remove();
+      const b = document.createElement('span');
+      b.dataset.qsaStatus = '';
+      b.textContent = ` · ${stu.status || '상태 없음'}${stu.missing ? ' (최근 DSA 명단에 없음)' : ''}${limited ? ' — 수강확인서만 발급' : ''}`;
+      b.style.color = limited ? '#B45309' : '';
+      info.append(b);
+    }
+  }
+  const __origLookup = window.certLookupStudent;
+  window.certLookupStudent = async (...a) => { await __origLookup(...a); __qsaTypeGuard(); };
+
   // ── QSA 입구 ──
   return {
     async boot(profile) {
@@ -3751,6 +3782,6 @@ window.bulkSendExecute = async () => {
       showScreen('appScreen');
       switchTab('vCert');
     },
-    reload,
+    async refresh() { await reload(); renderCert(); __qsaTypeGuard(); },
   };
 }
