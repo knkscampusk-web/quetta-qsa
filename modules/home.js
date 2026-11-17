@@ -7,10 +7,10 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const STEPS = [
-  { step: "0단계", what: "로그인, 허용목록, 보안 규칙, 화면 틀", state: "완료" },
-  { step: "1단계", what: "장학, 비용 관리, 좌석 배치, 수업 배정 이식", state: "다음" },
-  { step: "2단계", what: "등록 보고, 증명서 관리자 화면 연결", state: "예정" },
-  { step: "3단계", what: "교재 입고, 특강 연결", state: "예정" },
+  { step: "기반",     what: "로그인, 계정·권한, 보안 규칙, 화면 틀, 연결 설정", state: "완료" },
+  { step: "인원관리", what: "등록현황(병행 검증 중), 반배정, 전입신고", state: "다음" },
+  { step: "수업운영", what: "좌석 배정, 장학 관리, 교재 입고, 특강 관리", state: "예정" },
+  { step: "유틸리티", what: "증명서 발급 (정규 마스터 명단, 직인, 기존 이력 가져오기)", state: "완료" },
 ];
 
 export async function mount(el, ctx) {
