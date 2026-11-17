@@ -48,7 +48,7 @@ export const menu = [
   { id: "seating",     label: "좌석 배치", icon: "armchair",           ready: false },
   { id: "assign",      label: "수업 배정", icon: "calendar-range",     ready: false },
   { group: "2·3단계 연결 예정" },
-  { id: "cert",        label: "증명서",    icon: "file-badge",         ready: false },
+  { id: "cert",        label: "증명서 발급", icon: "file-badge",       ready: false, loader: () => import("../modules/cert.js") },   // 원본 연결 확인 후 ready: true
   { id: "textbook",    label: "교재 입고", icon: "package-check",      ready: false },
   { id: "lecture",     label: "특강",      icon: "presentation",       ready: false },
   { group: "관리" },
@@ -82,4 +82,3 @@ export function canSee(profile, item) {
 
 // 계정 관리에서 체크박스로 줄 수 있는 메뉴 (홈·숨김·관리자 전용 제외, 준비 중 포함)
 export const grantableMenus = flatMenu.filter((m) => m.id !== "home" && !m.hidden && !m.adminOnly);
-
