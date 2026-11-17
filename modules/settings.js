@@ -151,12 +151,24 @@ export async function mount(el, ctx) {
   seal.querySelector("[data-seal-file]").addEventListener("change", async (ev) => {
     const file = ev.target.files[0];
     ev.target.value = "";
-    if (!file) return;
     smsg.style.color = "";
-    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) { smsg.textContent = "PNG·JPG·WEBP 이미지만 올릴 수 있습니다."; smsg.style.color = "var(--danger)"; return; }
+    if (!file) { smsg.textContent = "선택된 파일이 없습니다."; return; }
+    smsg.textContent = `파일 확인 중… (${file.name}, ${Math.round(file.size / 1024)}KB, 형식: ${file.type || "알 수 없음"})`;
+    const okType = /^image\/(png|jpeg|webp)$/.test(file.type) || /\.(png|jpe?g|webp)$/i.test(file.name);
+    if (!okType) { smsg.textContent = "PNG·JPG·WEBP 이미지만 올릴 수 있습니다."; smsg.style.color = "var(--danger)"; return; }
     if (file.size > MAX_BYTES) { smsg.textContent = "600KB 이하 이미지로 올려주세요."; smsg.style.color = "var(--danger)"; return; }
-    const dataUrl = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
-    if (!confirm("이 이미지를 증명서 직인으로 저장할까요? 기존 직인은 바뀝니다.")) return;
+    let dataUrl = "";
+    try {
+      dataUrl = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(file); });
+    } catch (e) { smsg.textContent = `파일을 읽지 못했습니다 (${e?.message || e}).`; smsg.style.color = "var(--danger)"; return; }
+    // 확장자로만 판별된 경우(형식 정보 없음) 저장 형식을 맞춰줌
+    if (!/^data:image\/(png|jpeg|webp);base64,/.test(dataUrl)) {
+      const ext = (file.name.split(".").pop() || "").toLowerCase();
+      const mime = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+      dataUrl = `data:${mime};base64,` + dataUrl.split(",")[1];
+    }
+    if (!confirm("이 이미지를 증명서 직인으로 저장할까요? 기존 직인은 바뀝니다.")) { smsg.textContent = "취소했습니다."; return; }
+    smsg.textContent = "저장 중… (몇 초 걸릴 수 있습니다)";
     try {
       await setDoc(doc(db, ...SEAL_DOC), { dataUrl, updatedAt: serverTimestamp(), updatedBy: profile.email });
       const s = await getDoc(doc(db, ...SEAL_DOC));
