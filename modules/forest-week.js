@@ -63,12 +63,14 @@ export async function mountForestWeek(host, ctx) {
   }
 
   // ── 노동숲 읽기 (문서 2건) ──
-  let tasks = {}, members = [];
+  let tasks = {}, members = [], emailMap = {}, cfg = {};
   try {
     const db = getFirestore(app);
     const [td, cd] = await Promise.all([getDoc(doc(db, "board", "tasks")), getDoc(doc(db, "board", "config"))]);
     tasks = td.exists() && td.data().data ? JSON.parse(td.data().data) : {};
-    members = (cd.exists() && Array.isArray(cd.data().members)) ? cd.data().members : [];
+    cfg = cd.exists() ? cd.data() : {};
+    members = Array.isArray(cfg.members) ? cfg.members : [];
+    emailMap = cfg.emailMap || {};
   } catch (e) {
     console.error(e);
     body.innerHTML = "";
@@ -83,6 +85,35 @@ export async function mountForestWeek(host, ctx) {
     members = [...new Set(Object.keys(tasks).map((k) => k.split("_")[0]))].map((id) => ({ id, name: id }));
   }
 
+  // ── 본인을 맨 위로 (노동숲 emailMap: 이메일 → 멤버 ID) ──
+  const myMid = emailMap[ctx.profile.email] || Object.entries(emailMap).find(([e]) => e.toLowerCase() === ctx.profile.email)?.[1] || null;
+  if (myMid) members = [...members.filter((m) => m.id === myMid), ...members.filter((m) => m.id !== myMid)];
+
+  // ── 연차·반차 ──
+  // 노동숲 leaveData: { 'YYYY-MM-DD': [멤버ID, …] } (연차). 반차는 버전에 따라 형태가 달라서 넓게 해석:
+  //  · 항목이 객체면 {mid|id|memberId, type|kind|half}, 문자열이면 'm1' / 'm1_half' / 'm1:오전' 등
+  //  · config 안에 'half' 가 들어간 이름의 같은 구조 데이터가 있으면 반차로 봄
+  const HALF_RE = /half|반차|am|pm|오전|오후/i;
+  const leaveMap = {};   // 'mid_ds' → { kind: '연차' | '반차', part: '오전' | '오후' | '' }
+  function addLeave(ds, entry, forceHalf) {
+    let mid = "", hint = "";
+    if (entry && typeof entry === "object") { mid = entry.mid || entry.id || entry.memberId || ""; hint = String(entry.type || entry.kind || entry.half || entry.part || ""); }
+    else { const str = String(entry); mid = str.split(/[_:|\-\s]/)[0]; hint = str.slice(mid.length); }
+    if (!mid) return;
+    const half = forceHalf || HALF_RE.test(hint) || (entry && entry.half === true);
+    const part = /am|오전/i.test(hint) ? "오전" : /pm|오후/i.test(hint) ? "오후" : "";
+    leaveMap[`${mid}_${ds}`] = { kind: half ? "반차" : "연차", part };
+  }
+  for (const [key, val] of Object.entries(cfg)) {
+    if (!val || typeof val !== "object" || Array.isArray(val)) continue;
+    const isLeave = key === "leaveData" || /half/i.test(key);
+    if (!isLeave) continue;
+    for (const [ds, list] of Object.entries(val)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(ds)) continue;
+      (Array.isArray(list) ? list : [list]).forEach((e) => addLeave(ds, e, /half/i.test(key)));
+    }
+  }
+
   let offset = 0; // 0 = 이번 주
   function render() {
     const today = fmt(new Date());
@@ -90,30 +121,9 @@ export async function mountForestWeek(host, ctx) {
     start.setDate(start.getDate() + offset * 7);
     const days = [...Array(7)].map((_, i) => { const d = new Date(start); d.setDate(d.getDate() + i); return d; });
 
-    // 지난 미완료 (이번 주 보기일 때만, 최근 14일)
-    let overdue = [];
-    if (offset === 0) {
-      const from = new Date(start); from.setDate(from.getDate() - 14);
-      for (const [key, list] of Object.entries(tasks)) {
-        const i = key.indexOf("_"); const mid = key.slice(0, i); const ds = key.slice(i + 1);
-        if (ds >= fmt(from) && ds < fmt(start)) (list || []).forEach((t) => { if (!t.done) overdue.push({ mid, ds, t }); });
-      }
-    }
-
     const wrap = document.createElement("div");
     const label = `${fmt(days[0]).slice(5)} ~ ${fmt(days[6]).slice(5)}`;
     wrap.innerHTML = `<p class="muted" style="margin-bottom:var(--s3)">${offset === 0 ? "이번 주" : offset > 0 ? "다음 주" : "지난주"} · ${label} · 수정과 완료 체크는 노동숲에서 합니다.</p>`;
-
-    if (overdue.length) {
-      const box = document.createElement("div");
-      box.className = "notice notice-error";
-      box.style.marginBottom = "var(--s4)";
-      box.textContent = `지난 2주 미완료 ${overdue.length}건: ` + overdue.slice(0, 6).map((o) => {
-        const m = members.find((x) => x.id === o.mid);
-        return `${(m?.name || o.mid).replace(EMOJI, "")} ${o.ds.slice(5)} ${o.t.text || ""}`;
-      }).join(" · ") + (overdue.length > 6 ? " …" : "");
-      wrap.append(box);
-    }
 
     const tw = document.createElement("div");
     tw.className = "table-wrap";
@@ -128,12 +138,29 @@ export async function mountForestWeek(host, ctx) {
       const nameTd = document.createElement("td");
       nameTd.style.fontWeight = "700";
       nameTd.textContent = (m.name || m.id).replace(EMOJI, "").trim();
+      if (m.id === myMid) {
+        const me = document.createElement("span");
+        me.className = "badge done"; me.style.cssText = "margin-left:6px;height:20px;font-size:11px";
+        me.textContent = "나";
+        nameTd.append(me);
+        tr.style.background = "rgba(236,250,251,.55)";
+      }
       if (m.color) nameTd.style.borderLeft = `3px solid ${m.color}`;
       tr.append(nameTd);
       let any = false;
       for (const d of days) {
         const td = document.createElement("td");
         td.style.cssText = "vertical-align:top;text-align:left;white-space:normal;font-size:12.5px;line-height:1.5";
+        const lv = leaveMap[`${m.id}_${fmt(d)}`];
+        if (lv) {
+          any = true;
+          const b = document.createElement("span");
+          b.className = lv.kind === "연차" ? "badge next" : "badge";
+          b.style.cssText = "height:20px;font-size:11px;margin-bottom:4px";
+          b.textContent = lv.part ? `${lv.kind}·${lv.part}` : lv.kind;
+          td.append(b);
+          if (lv.kind === "연차") td.style.background = "rgba(239,241,250,.7)";
+        }
         const list = tasks[`${m.id}_${fmt(d)}`] || [];
         for (const t of list) {
           any = true;
