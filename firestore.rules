@@ -101,7 +101,7 @@ service cloud.firestore {
       allow write: if isAdmin()
         && request.resource.data.keys().hasOnly(['dataUrl', 'updatedAt', 'updatedBy'])
         && request.resource.data.dataUrl is string
-        && request.resource.data.dataUrl[0:30].matches('^data:image/(png|jpeg|webp);base64,.*')
+        && request.resource.data.dataUrl.split(',')[0] in ['data:image/png;base64', 'data:image/jpeg;base64', 'data:image/webp;base64']
         && request.resource.data.dataUrl.size() < 900000
         && request.resource.data.updatedBy == myEmail();
     }
