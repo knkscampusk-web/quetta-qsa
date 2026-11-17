@@ -2,8 +2,10 @@
 // 원본(quetta-2ea94, 전입신고 관리 앱)의 증명서 발급 이력·설정을 "읽기만" 해서
 //   ① JSON 백업 파일로 내려받고  ② QSA Firestore 로 복사합니다.
 // 원본에는 어떤 쓰기·삭제도 하지 않습니다 (이 파일에 원본 쓰기 코드가 없음).
+// 원본 규칙상 증명서 이력은 직원 계정만 읽을 수 있어서, 원본 앱의 직원 계정으로 잠깐 로그인해 읽고 바로 로그아웃합니다.
+// 입력한 비밀번호는 Firebase 로그인에만 쓰고 어디에도 저장하지 않습니다.
 import {
-  getAuth, signInAnonymously, signOut,
+  getAuth, signInWithEmailAndPassword, signOut,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
   getFirestore, collection, getDocs, doc, getDoc, setDoc, writeBatch,
@@ -32,7 +34,7 @@ export async function mount(el, ctx) {
       <div class="card-body">
         <p class="muted" style="color:var(--ink-2);line-height:1.7">
           기존 전입신고 관리 앱의 <b>증명서 발급 이력과 설정(과정·발급번호·메일)</b>을 QSA로 <b>복사</b>합니다. 발급번호가 이어지도록 실제 발급 전에 한 번 실행하세요. 원본은 읽기만 하며, 원본 데이터와 기존 앱은 그대로 남습니다.<br>
-          순서: <b>① 원본 불러오기 → ② 백업 받기 → ③ QSA로 복사</b>. 백업을 받아야 복사 버튼이 열립니다.
+          순서: <b>직원 계정 입력 → ① 원본 불러오기 → ② 백업 받기 → ③ QSA로 복사</b>. 비밀번호는 로그인에만 쓰고 저장하지 않으며, 읽기가 끝나면 바로 로그아웃합니다. 백업을 받아야 복사 버튼이 열립니다.
         </p>
       </div>
     </section>
@@ -40,6 +42,10 @@ export async function mount(el, ctx) {
     <section class="card">
       <div class="card-head"><h2>진행</h2></div>
       <div class="card-body">
+        <div class="toolbar">
+          <input class="input" data-src-email type="email" placeholder="원본 앱 직원 이메일 (공용 계정 권장)" autocomplete="off" style="width:260px">
+          <input class="input" data-src-pw type="password" placeholder="비밀번호" autocomplete="off" style="width:180px">
+        </div>
         <div class="toolbar">
           <button class="btn" data-act="load"><i data-lucide="download-cloud"></i>① 원본 불러오기</button>
           <button class="btn btn-line" data-act="backup" disabled><i data-lucide="file-down"></i>② 백업 받기 (JSON)</button>
@@ -112,9 +118,14 @@ export async function mount(el, ctx) {
     btn("load").disabled = true;
     log("원본에 접속하는 중…");
     try {
+      const email = el.querySelector("[data-src-email]").value.trim();
+      const pwEl = el.querySelector("[data-src-pw]");
+      if (!email || !pwEl.value) throw Object.assign(new Error("원본 앱 직원 이메일과 비밀번호를 입력해 주세요"), { code: "입력 필요" });
       const app = getLinkedApp("enroll");
       srcAuth = getAuth(app);
-      if (!srcAuth.currentUser) await signInAnonymously(srcAuth);
+      if (srcAuth.currentUser) await signOut(srcAuth);          // 다른 세션(익명 등)이 있으면 정리
+      await signInWithEmailAndPassword(srcAuth, email, pwEl.value);
+      pwEl.value = "";                                           // 화면에서도 바로 지움
       const srcDb = getFirestore(app);
       source = {};
       for (const name of COLLECTIONS) {
@@ -124,6 +135,7 @@ export async function mount(el, ctx) {
           .filter((d) => !SKIP[name]?.has(d.id))
           .map((d) => ({ id: d.id, data: d.data() }));
       }
+      await signOut(srcAuth);                                    // 다 읽었으면 원본 접속 종료
       backedUp = false;
       renderRows(await qsaCounts().catch(() => ({})));
       btn("backup").disabled = false;
@@ -131,7 +143,11 @@ export async function mount(el, ctx) {
       log("원본을 불러왔습니다. 다음으로 백업을 받아주세요.");
     } catch (e) {
       console.error(e);
-      log(`원본을 불러오지 못했습니다 (${e.code || e.message}).`, true);
+      if (srcAuth?.currentUser) signOut(srcAuth);
+      const hint = /invalid-credential|wrong-password|user-not-found|invalid-email/.test(e.code || "")
+        ? " 이메일·비밀번호를 확인해 주세요."
+        : (e.code === "permission-denied" ? " 이 계정이 원본 앱에서 직원(staff)으로 승인돼 있는지 확인해 주세요." : "");
+      log(`원본을 불러오지 못했습니다 (${e.code || e.message}).${hint}`, true);
     } finally {
       btn("load").disabled = false;
     }
