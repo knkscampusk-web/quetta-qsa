@@ -86,6 +86,17 @@ service cloud.firestore {
       allow read, write: if canUse('enroll');
     }
 
+    // ── 연결 설정 (매년 바뀌는 Apps Script 주소 등) ──
+    // 쓰기는 관리자만, 읽기는 관리자 또는 그 주소를 쓰는 메뉴 권한
+    match /qsa_settings/{docId} {
+      allow read: if isAdmin() || (docId == 'links' && canUse('cert'));
+      allow write: if isAdmin()
+        && docId == 'links'
+        && request.resource.data.keys().hasOnly(['certRoster'])
+        && request.resource.data.certRoster.url.matches('^https://script[.]google[.]com/macros/s/[A-Za-z0-9_-]+/exec$')
+        && request.resource.data.certRoster.updatedBy == myEmail();
+    }
+
     // ── 증명서 발급 (메뉴 ID: cert) ──
     // 학생 명단: DSA 원생 마스터에서 필요한 열만 저장한 문서 1개
     match /cert_roster/{docId} {
