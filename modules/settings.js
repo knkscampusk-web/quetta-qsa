@@ -127,8 +127,8 @@ export async function mount(el, ctx) {
           <span class="muted" data-seal-empty style="font-size:12px">없음</span>
         </div>
         <div>
-          <button class="btn" type="button" data-seal-pick>직인 이미지 올리기</button>
-          <input type="file" class="file-input" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" data-seal-file tabindex="-1" aria-hidden="true">
+          <label style="display:block;font-size:13px;color:var(--ink-2);margin-bottom:var(--s1)">직인 이미지 파일 선택 (PNG 권장)</label>
+          <input type="file" class="input" style="height:auto;padding:8px;max-width:340px" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" data-seal-file>
           <p class="muted" data-seal-meta style="font-size:13px;margin-top:var(--s2)"></p>
           <p class="muted" data-seal-msg style="font-size:13px;margin-top:var(--s1)"></p>
         </div>
@@ -143,16 +143,6 @@ export async function mount(el, ctx) {
     if (d?.dataUrl) { img.src = d.dataUrl; img.style.display = "block"; empty.style.display = "none"; }
     smeta.textContent = d?.dataUrl ? `마지막 변경 ${d.updatedAt?.toDate?.().toLocaleString("ko-KR") || "-"} · ${d.updatedBy || ""}` : "아직 등록된 직인이 없습니다.";
   };
-  try {
-    const s = await getDoc(doc(db, ...SEAL_DOC));
-    showSeal(s.exists() ? s.data() : null);
-  } catch (e) {
-    smeta.textContent = `불러오지 못했습니다 (${e.code || e.message}).`;
-  }
-  seal.querySelector("[data-seal-pick]").addEventListener("click", () => {
-    smsg.textContent = ""; smsg.style.color = "";
-    seal.querySelector("[data-seal-file]").click();
-  });
   seal.querySelector("[data-seal-file]").addEventListener("change", async (ev) => {
     const file = ev.target.files[0];
     ev.target.value = "";
@@ -184,4 +174,8 @@ export async function mount(el, ctx) {
       smsg.style.color = "var(--danger)";
     }
   });
+  smeta.textContent = "불러오는 중…";
+  getDoc(doc(db, ...SEAL_DOC))
+    .then((s) => showSeal(s.exists() ? s.data() : null))
+    .catch((e) => { smeta.textContent = `불러오지 못했습니다 (${e.code || e.message}).`; });
 }
