@@ -2390,7 +2390,7 @@ const CERT_TEXTS = {
 
 // 발급자 이름 로컬 저장 (편의)
 const CERT_ISSUER_KEY = 'quetta_cert_issuer';
-const SEAL_URL = 'seal.png'; // GitHub 저장소 루트에 seal.png 파일 배포 (index.html과 같은 위치)
+const SEAL_URL = __QSA.sealUrl || ''; // QSA: 직인은 QSA DB(qsa_settings/seal)에서, 권한 계정만 받음 // GitHub 저장소 루트에 seal.png 파일 배포 (index.html과 같은 위치)
 
 let certTab = 'form'; // 'form' | 'history'
 
