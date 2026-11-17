@@ -167,6 +167,7 @@ export async function mount(el, ctx) {
         <label class="btn btn-line" style="cursor:pointer"><span>엑셀 올리기(예비)</span>
           <input type="file" accept=".xlsx,.xls,.csv" data-file hidden></label>
       </div>
+      <p class="notice notice-error" data-seal-warn hidden>직인 이미지가 등록되지 않았습니다. 관리자가 '관리 › 연결 설정'에서 직인을 올려야 증명서에 찍힙니다.</p>
       <p class="notice notice-error" data-counter-warn hidden>발급번호 설정이 아직 없습니다. 기존 앱과 번호가 겹치지 않도록, 실제 발급 전에 "기존 발급 이력 가져오기"를 먼저 실행해 주세요.</p>
       <div data-preview hidden style="margin-top:var(--s4)"></div>
     </div>`;
@@ -194,8 +195,17 @@ export async function mount(el, ctx) {
   const pdfBox = root.getElementById("certPdfContainer");     // html2canvas 는 섀도 DOM 을 못 그려서 문서 쪽으로
   if (pdfBox) { document.body.append(pdfBox); ctx.track(() => pdfBox.remove()); }
 
+  // 직인 (QSA DB, 증명서 권한 계정만 읽기)
+  let sealUrl = "";
+  try {
+    const sealSnap = await getDoc(doc(db, "qsa_settings", "seal"));
+    sealUrl = sealSnap.exists() ? (sealSnap.data().dataUrl || "") : "";
+  } catch (e) { console.warn("[직인] 불러오기 실패", e.code || e.message); }
+  card.querySelector("[data-seal-warn]").hidden = !!sealUrl;
+
   const api = await start(root, {
     db,
+    sealUrl,
     fs: { collection, doc, addDoc, updateDoc, deleteDoc, getDocs, getDoc, setDoc,
           query, orderBy, writeBatch, runTransaction, serverTimestamp, onSnapshot },
   });
