@@ -127,7 +127,8 @@ export async function mount(el, ctx) {
           <span class="muted" data-seal-empty style="font-size:12px">없음</span>
         </div>
         <div>
-          <label class="btn" style="cursor:pointer"><span>직인 이미지 올리기</span><input type="file" accept="image/png,image/jpeg,image/webp" data-seal-file hidden></label>
+          <button class="btn" type="button" data-seal-pick>직인 이미지 올리기</button>
+          <input type="file" class="file-input" accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp" data-seal-file tabindex="-1" aria-hidden="true">
           <p class="muted" data-seal-meta style="font-size:13px;margin-top:var(--s2)"></p>
           <p class="muted" data-seal-msg style="font-size:13px;margin-top:var(--s1)"></p>
         </div>
@@ -148,6 +149,10 @@ export async function mount(el, ctx) {
   } catch (e) {
     smeta.textContent = `불러오지 못했습니다 (${e.code || e.message}).`;
   }
+  seal.querySelector("[data-seal-pick]").addEventListener("click", () => {
+    smsg.textContent = ""; smsg.style.color = "";
+    seal.querySelector("[data-seal-file]").click();
+  });
   seal.querySelector("[data-seal-file]").addEventListener("change", async (ev) => {
     const file = ev.target.files[0];
     ev.target.value = "";
