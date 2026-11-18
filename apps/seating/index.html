@@ -388,6 +388,21 @@ input,select,textarea{font-family:inherit;cursor:auto}
   .cc-item{ background:#fff !important; color:#115E66 !important; border:1px solid rgba(0,178,190,.3); }
   #swap-bar{ background:#EFF1FA !important; border-bottom:2px solid #7E8CC6 !important; color:#434E89 !important; }
   #swap-cancel{ background:#7E8CC6 !important; }
+
+  /* 배열편집 칸 → 크게, QUETTA 색 */
+  .egrid{ gap:6px !important; }
+  .egrid-wrap{ padding:16px 20px 20px !important; }
+  .ec{ width:72px !important; height:72px !important; border-radius:12px !important; border-width:1px !important; gap:2px; }
+  .ec.void{ width:14px !important; min-height:72px !important; }
+  .ec.active{ background:#ECFAFB !important; border-color:#9FDDE2 !important; }
+  .ec.active:hover{ background:#D3F3F5 !important; }
+  .ec.blocked{ background:#FBF3EA !important; border-color:#EBCB9F !important; }
+  .ec-dn{ font-size:18px !important; font-weight:800 !important; color:#115E66 !important; }
+  .ec.blocked .ec-dn{ color:#B26B1F !important; }
+  .ec-n{ font-size:11px !important; color:rgba(17,94,102,.55) !important; }
+  .edit-ctrl{ background:transparent !important; font-size:13px !important; }
+  .edit-legend{ font-size:13px !important; }
+  .edit-hint{ font-size:13px !important; }
 }
 #logout-btn, button[onclick="renderUserList()"]{ display:none !important; }   /* 로그아웃·접속자 관리는 QSA 가 담당 */
 #user-info{ display:none !important; }
@@ -1309,8 +1324,8 @@ async function submitApprovalRequest(){
       requestedAt:firebase.firestore.FieldValue.serverTimestamp(),
     });
     sendJandi(
-      '🔔 QUETTA 접속 승인 요청',
-      `실명: ${realname}\n소속: ${affiliation}\n${reason?`사유: ${reason}\n`:''}─────────────\nGoogle 이름: ${user.displayName||'(없음)'}\n이메일: ${user.email}\n시각: ${new Date().toLocaleString('ko-KR')}\n\n👉 Firestore > 데이터베이스 > quetta_users 에서 approved: true로 변경`,
+      ' QUETTA 접속 승인 요청',
+      `실명: ${realname}\n소속: ${affiliation}\n${reason?`사유: ${reason}\n`:''}─────────────\nGoogle 이름: ${user.displayName||'(없음)'}\n이메일: ${user.email}\n시각: ${new Date().toLocaleString('ko-KR')}\n\n Firestore > 데이터베이스 > quetta_users 에서 approved: true로 변경`,
       '#f59e0b'
     );
     document.getElementById('pending-msg').innerHTML=
@@ -1319,7 +1334,7 @@ async function submitApprovalRequest(){
   } catch(e){
     console.error(e);
     alert('요청 저장 실패: '+e.message);
-    btn.disabled=false;btn.style.opacity='1';btn.textContent='🔔 승인 요청 보내기';
+    btn.disabled=false;btn.style.opacity='1';btn.textContent=' 승인 요청 보내기';
   }
 }
 
@@ -1363,7 +1378,7 @@ function toggleAdminMode(){
     if(pw!=='6688'){toast('비밀번호가 틀렸습니다','err');return;}
     _adminMode=true;
     _applyAdminUI();
-    toast('관리자 모드 활성화 ✅','ok');
+    toast('관리자 모드 활성화 ','ok');
   }
 }
 function _applyAdminUI(){
@@ -1380,12 +1395,12 @@ function _applyAdminUI(){
   if(!_adminMode){closeAdminMenu();}
   if(toggleBtn){
     if(_adminMode){
-      toggleBtn.textContent='🔓 관리자';
+      toggleBtn.textContent=' 관리자';
       toggleBtn.style.background='var(--teal)';
       toggleBtn.style.color='#fff';
       toggleBtn.style.border='none';
     } else {
-      toggleBtn.textContent='🔒 관리자';
+      toggleBtn.textContent=' 관리자';
       toggleBtn.style.background='rgba(255,255,255,.12)';
       toggleBtn.style.color='rgba(255,255,255,.6)';
       toggleBtn.style.border='1px solid rgba(255,255,255,.2)';
@@ -1491,18 +1506,18 @@ function pushToFirebase(immediate){
       banRoomMap:S.banRoomMap||{},
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()})
       .then(()=>{
-        if(stat){stat.textContent='✓ 저장됨';stat.style.color='#86efac';}
+        if(stat){stat.textContent=' 저장됨';stat.style.color='#86efac';}
         setTimeout(()=>{_syncing=false;},1500); // 1.5초 후 동기화 재허용
       })
       .catch(e=>{
         console.error(e);_syncing=false;
-        if(stat){stat.textContent='⚠ 실패';stat.style.color='#fca5a5';}
+        if(stat){stat.textContent=' 실패';stat.style.color='#fca5a5';}
       });
   };
   if(immediate) exec();
   else _saveTimer=setTimeout(exec,400);
 }
-function saveLayoutNow(){pushToFirebase();toast('배열 저장됨 ✅','ok');}
+function saveLayoutNow(){pushToFirebase();toast('배열 저장됨 ','ok');}
 
 /* ═══ LOAD ═══ */
 function load(){
@@ -1587,7 +1602,7 @@ function migrateFromLocalStorage(){
         if(d.examTypes?.length) S.examTypes=(d.examTypes||[]).map(et=>typeof et==='string'?{name:et,date:''}:et);
         if(d.snapshots?.length) S.snapshots=d.snapshots||[];
         S.active=S.rooms[0]?.id||null;
-        toast(`localStorage(${key})에서 데이터 복구됨 ✅`,'ok');return true;
+        toast(`localStorage(${key})에서 데이터 복구됨 `,'ok');return true;
       }
     }catch(e){}
   }
@@ -1809,7 +1824,7 @@ function openUplModal(mode){
   }
   _uploadRoomId=mode;
   const isRoom=mode!=='all';
-  document.getElementById('upl-title').textContent=isRoom?`📤 ${mode} 업로드`:'📤 전체 엑셀 업로드';
+  document.getElementById('upl-title').textContent=isRoom?` ${mode} 업로드`:' 전체 엑셀 업로드';
   const n=document.getElementById('upl-notice');
   if(isRoom){n.style.display='';n.innerHTML=`<b>${mode}</b> 강의실 업로드. 고사장 값이 다른 학생은 <b>미배정</b>으로 표시됩니다.`;}
   else n.style.display='none';
@@ -1859,15 +1874,15 @@ function updateUplGuide(){
   if(isAuto){
     const useTamgu=document.getElementById('use-tamgu-sort')?.checked!==false;
     const order=useTamgu?'반코드 → 탐구 → 남녀 → 이름':'반코드 → 남녀 → 이름 (탐구 무시)';
-    guide.innerHTML=`<strong>✅ 필수 컬럼 (자동 배정):</strong> <code>반 · 학번 · 성별 · 성명${useTamgu?' · 탐구1 · 탐구2':''}</code><br>
+    guide.innerHTML=`<strong> 필수 컬럼 (자동 배정):</strong> <code>반 · 학번 · 성별 · 성명${useTamgu?' · 탐구1 · 탐구2':''}</code><br>
       · 정렬 우선순위: <b>${order}</b><br>
       · <b>반코드/고사장/자리</b>는 매핑·정렬 옵션으로 자동 결정됩니다`;
   } else if(_uploadRoomId==='all'){
-    guide.innerHTML=`<strong>✅ 필수 컬럼 (전체 업로드):</strong> <code>이름 · 학번 · 고사장 · 자리</code><br>
+    guide.innerHTML=`<strong> 필수 컬럼 (전체 업로드):</strong> <code>이름 · 학번 · 고사장 · 자리</code><br>
       · 권장 컬럼: <code>반 · 성별 · 탐구 · 반코드</code><br>
       · <b>자리</b> = 세로(열)순 업로드번호 / 화면 표시는 가로순으로 자동 변환`;
   } else {
-    guide.innerHTML=`<strong>✅ 필수 컬럼 (강의실별 업로드):</strong> <code>이름 · 학번 · 자리</code><br>
+    guide.innerHTML=`<strong> 필수 컬럼 (강의실별 업로드):</strong> <code>이름 · 학번 · 자리</code><br>
       · 권장 컬럼: <code>반 · 성별 · 탐구 · 반코드</code><br>
       · <b>자리</b> = 세로(열)순 업로드번호 / 화면 표시는 가로순으로 자동 변환<br>
       · <b>고사장</b>이 해당 강의실과 다른 행은 <b>미배정</b> 처리됩니다`;
@@ -1911,7 +1926,7 @@ function handleUpload(e){
       const wb=XLSX.read(ev.target.result,{type:'array'});
       const sn=wb.SheetNames.includes('RawData')?'RawData':wb.SheetNames[0];
       const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{defval:''});
-      if(!rows.length){uplMsg('❌ 빈 시트','#7f1d1d');return;}
+      if(!rows.length){uplMsg(' 빈 시트','#7f1d1d');return;}
       const hdrs=Object.keys(rows[0]);
       // 자동 배정 모드 체크
       const isAuto=_uploadRoomId==='all' && document.getElementById('upl-auto')?.checked;
@@ -1939,7 +1954,7 @@ function handleUpload(e){
         ? ['반문자','이름','학번']
         : (_uploadRoomId==='all'?['이름','학번','고사장','자리']:['이름','학번','자리']);
       const miss=req.filter(k=>!map[k]);
-      if(miss.length){uplMsg(`❌ 컬럼 없음: ${miss.join(', ')}<br><small>헤더: ${hdrs.slice(0,12).join(' · ')}</small>`,'#7f1d1d');return;}
+      if(miss.length){uplMsg(` 컬럼 없음: ${miss.join(', ')}<br><small>헤더: ${hdrs.slice(0,12).join(' · ')}</small>`,'#7f1d1d');return;}
 
       // === 자동 배정 모드 분기 ===
       if(isAuto){
@@ -1949,7 +1964,7 @@ function handleUpload(e){
       }
 
       // === 기존 흐름 (수동 배정) ===
-      // ✅ 강의실별 업로드에서 파일의 고사장 값이 대상 강의실과 다른 케이스 검증
+      //  강의실별 업로드에서 파일의 고사장 값이 대상 강의실과 다른 케이스 검증
       if(_uploadRoomId!=='all' && map.고사장){
         const excelRooms=new Set();
         rows.forEach(r=>{
@@ -1961,9 +1976,9 @@ function handleUpload(e){
         if(excelRoomList.length>0 && excelRooms.size<=3){
           const mismatchList=excelRoomList.join(', ');
           const totalRows=rows.length;
-          const proceed=confirm(`⚠ 파일의 "고사장" 값(${mismatchList})이 대상 강의실 "${_uploadRoomId}"와 다릅니다.\n\n· 총 ${totalRows}행 (파일 강의실: ${[...excelRooms].join(', ')})\n\n[확인] 파일 고사장 무시하고 모두 "${_uploadRoomId}"에 배정\n[취소] 업로드 취소`);
+          const proceed=confirm(` 파일의 "고사장" 값(${mismatchList})이 대상 강의실 "${_uploadRoomId}"와 다릅니다.\n\n· 총 ${totalRows}행 (파일 강의실: ${[...excelRooms].join(', ')})\n\n[확인] 파일 고사장 무시하고 모두 "${_uploadRoomId}"에 배정\n[취소] 업로드 취소`);
           if(!proceed){
-            uplMsg(`❌ 업로드 취소됨. 파일의 "고사장" 컬럼을 확인해주세요 (H열 = "${_uploadRoomId}"로 수정 or 삭제).`,'#7f1d1d');
+            uplMsg(` 업로드 취소됨. 파일의 "고사장" 컬럼을 확인해주세요 (H열 = "${_uploadRoomId}"로 수정 or 삭제).`,'#7f1d1d');
             toast('업로드 취소','err');
             e.target.value='';
             return;
@@ -1999,7 +2014,7 @@ function handleUpload(e){
           _inputSeat:inputSeat, _seatMismatch:(inputSeat>0 && assignSeat===0)};
       });
 
-      // ✅ 좌석 매칭 실패 검증 (강의실별 업로드만 해당 — 전체 업로드는 예외적으로 매칭 실패 허용)
+      //  좌석 매칭 실패 검증 (강의실별 업로드만 해당 — 전체 업로드는 예외적으로 매칭 실패 허용)
       if(_uploadRoomId!=='all'){
         const seatMissCount=parsed.filter(s=>s._seatMismatch).length;
         if(seatMissCount>0){
@@ -2007,12 +2022,12 @@ function handleUpload(e){
           const allFailed=seatMissCount===totalCount;
           let confirmMsg;
           if(allFailed){
-            confirmMsg=`❌ 자리번호가 활성 좌석과 매칭되는 학생이 하나도 없습니다.\n\n· 총 ${totalCount}명 모두 매칭 실패\n· 좌석 카드에 표시된 번호(dn)로 넣어야 합니다\n\n업로드를 진행하시겠습니까?\n\n[확인] 매칭 실패한 학생도 미배정으로 저장\n[취소] 업로드 취소 (기존 데이터 유지)`;
+            confirmMsg=` 자리번호가 활성 좌석과 매칭되는 학생이 하나도 없습니다.\n\n· 총 ${totalCount}명 모두 매칭 실패\n· 좌석 카드에 표시된 번호(dn)로 넣어야 합니다\n\n업로드를 진행하시겠습니까?\n\n[확인] 매칭 실패한 학생도 미배정으로 저장\n[취소] 업로드 취소 (기존 데이터 유지)`;
           } else {
-            confirmMsg=`⚠ ${seatMissCount}/${totalCount}명의 자리번호가 활성 좌석과 매칭되지 않습니다.\n\n· 좌석 카드에 표시된 번호(dn)로 넣어야 합니다\n\n계속 진행하시겠습니까?\n\n[확인] 매칭 성공한 ${totalCount-seatMissCount}명 배정 + 실패 ${seatMissCount}명 미배정\n[취소] 업로드 취소 (기존 데이터 유지)`;
+            confirmMsg=` ${seatMissCount}/${totalCount}명의 자리번호가 활성 좌석과 매칭되지 않습니다.\n\n· 좌석 카드에 표시된 번호(dn)로 넣어야 합니다\n\n계속 진행하시겠습니까?\n\n[확인] 매칭 성공한 ${totalCount-seatMissCount}명 배정 + 실패 ${seatMissCount}명 미배정\n[취소] 업로드 취소 (기존 데이터 유지)`;
           }
           if(!confirm(confirmMsg)){
-            uplMsg(`❌ 업로드 취소됨. 기존 데이터가 유지됩니다. 자리번호를 확인해주세요.`,'#7f1d1d');
+            uplMsg(` 업로드 취소됨. 기존 데이터가 유지됩니다. 자리번호를 확인해주세요.`,'#7f1d1d');
             toast('업로드 취소','err');
             e.target.value='';
             return;
@@ -2043,13 +2058,13 @@ function handleUpload(e){
       const selExam=(_uploadRoomId==='all')?(document.getElementById('upl-exam')?.value||''):'';
       saveAll();renderAll();
       writeLog('명단 업로드', `${_uploadRoomId} · ${parsed.length}명${mc?` (불일치 ${mc}명)`:''}${sm?` (좌석매칭실패 ${sm}명)`:''}${selExam?` [${selExam}]`:''}`);
-      let msg=`✅ ${parsed.length}명 업로드 완료${mc?` (강의실 불일치 ${mc}명)`:''}${selExam?` · 모의고사: <b>${selExam}</b>`:''}`;
+      let msg=` ${parsed.length}명 업로드 완료${mc?` (강의실 불일치 ${mc}명)`:''}${selExam?` · 모의고사: <b>${selExam}</b>`:''}`;
       if(sm){
-        msg+=`<br><span style="color:#7f1d1d">⚠ ${sm}명의 자리번호가 활성 좌석과 매칭 안돼서 미배정 처리됨. 좌석 카드에 표시된 번호로 넣어주세요.</span>`;
+        msg+=`<br><span style="color:#7f1d1d"> ${sm}명의 자리번호가 활성 좌석과 매칭 안돼서 미배정 처리됨. 좌석 카드에 표시된 번호로 넣어주세요.</span>`;
       }
       uplMsg(msg,'#14532d');
       toast(`${parsed.length}명 업로드 완료`+(mc?` · 불일치 ${mc}`:'')+(sm?` · 좌석매칭실패 ${sm}`:'')+(selExam?` · ${selExam}`:''),'ok');
-    }catch(err){uplMsg(`❌ 오류: ${err.message}`,'#7f1d1d');}
+    }catch(err){uplMsg(` 오류: ${err.message}`,'#7f1d1d');}
     e.target.value='';
   };
   rd.readAsArrayBuffer(f);
@@ -2067,7 +2082,7 @@ function autoAssignUpload(rows, map){
   const selExam=document.getElementById('upl-exam')?.value||'';
 
   if(!S.banRoomMap || !Object.keys(S.banRoomMap).length){
-    if(!confirm('⚠ 반→강의실 매핑이 비어있습니다.\n모든 학생이 미배정 상태로 들어갑니다.\n\n계속하시겠습니까?\n\n(설정 → 반코드 매핑에서 먼저 등록 권장)')) return;
+    if(!confirm(' 반→강의실 매핑이 비어있습니다.\n모든 학생이 미배정 상태로 들어갑니다.\n\n계속하시겠습니까?\n\n(설정 → 반코드 매핑에서 먼저 등록 권장)')) return;
   }
 
   // 2) 엑셀 행 → 학생 객체 (반/이름/학번 모두 있어야)
@@ -2183,10 +2198,10 @@ function autoAssignUpload(rows, map){
   // 7) 결과 안내
   const totalAssigned=newStudents.filter(s=>s.자리>0).length;
   const totalUnassigned=newStudents.length-totalAssigned;
-  let msg=`✅ 자동 배정 완료\n총 ${newStudents.length}명 처리\n· 배정: ${totalAssigned}명\n· 미배정: ${totalUnassigned}명`;
+  let msg=` 자동 배정 완료\n총 ${newStudents.length}명 처리\n· 배정: ${totalAssigned}명\n· 미배정: ${totalUnassigned}명`;
   // 좌석 부족 명단 (강의실별로 묶어서 표시)
   if(seatShortage.length){
-    msg+=`\n\n📍 좌석 부족 (${seatShortage.length}명) — 해당 강의실 미배정 패널에 있음:`;
+    msg+=`\n\n 좌석 부족 (${seatShortage.length}명) — 해당 강의실 미배정 패널에 있음:`;
     // 강의실별 그룹화
     const byRoomShortage={};
     seatShortage.forEach(s=>{
@@ -2203,7 +2218,7 @@ function autoAssignUpload(rows, map){
   }
   // 매핑 없음 명단
   if(unmapped.length){
-    msg+=`\n\n❓ 매핑 없음 (${unmapped.length}명) — 어느 강의실에도 속하지 않음:`;
+    msg+=`\n\n 매핑 없음 (${unmapped.length}명) — 어느 강의실에도 속하지 않음:`;
     // 반별 그룹화
     const byBan={};
     unmapped.forEach(s=>{
@@ -2217,11 +2232,11 @@ function autoAssignUpload(rows, map){
       if(names.length<=8) msg+=` — ${names.join(', ')}`;
       else msg+=` — ${names.slice(0,8).join(', ')} 외 ${names.length-8}명`;
     });
-    msg+=`\n\n💡 매핑 등록: ⚙ 설정 → 🗂 반코드 매핑`;
+    msg+=`\n\n 매핑 등록:  설정 →  반코드 매핑`;
   }
-  if(selExam) msg+=`\n\n📋 모의고사: ${selExam}`;
+  if(selExam) msg+=`\n\n 모의고사: ${selExam}`;
   alert(msg);
-  toast(`✅ 자동 배정 ${totalAssigned}명 · 미배정 ${totalUnassigned}명`,'ok');
+  toast(` 자동 배정 ${totalAssigned}명 · 미배정 ${totalUnassigned}명`,'ok');
   writeLog('자동 배정 업로드', `${newStudents.length}명 (배정 ${totalAssigned}, 미배정 ${totalUnassigned})`);
 }
 
@@ -2256,7 +2271,7 @@ function downloadTemplate(){
 function renderAll(){renderTabs();renderMain();}
 function renderTabs(){
   document.getElementById('tabs').innerHTML=
-    `<div class="tab ${S.active==='__stats__'?'on':''}" onclick="switchRoom('__stats__')" style="border-right:1px solid rgba(255,255,255,.1);margin-right:4px">📊 통계</div>`+
+    `<div class="tab ${S.active==='__stats__'?'on':''}" onclick="switchRoom('__stats__')" style="border-right:1px solid rgba(255,255,255,.1);margin-right:4px"> 통계</div>`+
     S.rooms.map(r=>{
       // displayContext 적용: 시행 종료 모의고사 (empty 모드)면 0으로 표시 (화면과 일관성)
       const ctx=resolveDisplayContext(r);
@@ -2341,21 +2356,21 @@ function renderGrid(room,isProctor){
     let bannerBody='';
     if(ue && hasSnap){
       bannerBody=`<div style="font-size:12px;font-weight:700;color:#1e3a8a">"${ctx.pastExam.name}" 시행 종료 → 다음: <b>${ue.name}</b> (${ue.date})</div>
-        <div style="font-size:11px;color:#3b82f6;margin-top:2px">"${ctx.upcomingSnap.name}" 스냅샷이 있습니다 · 헤더의 <b>[📚 지난배치]</b>에서 명단을 가져올 수 있습니다</div>`;
+        <div style="font-size:11px;color:#3b82f6;margin-top:2px">"${ctx.upcomingSnap.name}" 스냅샷이 있습니다 · 헤더의 <b>[ 지난배치]</b>에서 명단을 가져올 수 있습니다</div>`;
     } else if(ue){
       bannerBody=`<div style="font-size:12px;font-weight:700;color:#1e3a8a">"${ctx.pastExam.name}" 시행 종료 → 다음: <b>${ue.name}</b> (${ue.date})</div>
         <div style="font-size:11px;color:#3b82f6;margin-top:2px">아직 저장된 명단이 없습니다 · 새로 배치하거나 다른 지난배치를 불러오세요</div>`;
     } else {
       bannerBody=`<div style="font-size:12px;font-weight:700;color:#92400e">"${ctx.pastExam.name}" 시행 종료</div>
-        <div style="font-size:11px;color:#b45309;margin-top:2px">앞으로 2주 이내 예정된 모의고사가 없습니다 · ${_adminMode?'⚙ 설정에서 다음 모의고사를 등록하세요':'관리자에게 다음 시험 등록을 요청하세요'}</div>`;
+        <div style="font-size:11px;color:#b45309;margin-top:2px">앞으로 2주 이내 예정된 모의고사가 없습니다 · ${_adminMode?' 설정에서 다음 모의고사를 등록하세요':'관리자에게 다음 시험 등록을 요청하세요'}</div>`;
     }
     const bannerBg=(ue?'linear-gradient(90deg,#eff6ff,#dbeafe)':'#fffbeb');
     const bannerBorder=(ue?'#93c5fd':'#fde68a');
     emptyBanner=`
       <div style="background:${bannerBg};border:1px solid ${bannerBorder};border-radius:10px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <span style="font-size:22px">📅</span>
+        <span style="font-size:22px"></span>
         <div style="flex:1;min-width:240px">${bannerBody}</div>
-        ${ue && hasSnap?`<button class="btn btn-pri btn-sm" onclick="openSnapViewer()" style="white-space:nowrap">📚 지난배치 불러오기</button>`:''}
+        ${ue && hasSnap?`<button class="btn btn-pri btn-sm" onclick="openSnapViewer()" style="white-space:nowrap"> 지난배치 불러오기</button>`:''}
       </div>`;
     useEmptyStus=ctx.stus; // []
   }
@@ -2460,7 +2475,7 @@ function renderGrid(room,isProctor){
           ${room.examType?`<span style="font-size:11px;font-weight:700;color:var(--blue)">${room.examType}</span>`:''}
           <span class="card-sub">${isProctor?'시감자용 · 위아래 반전':'학생용'}</span>
         </div>
-        <button class="btn btn-danger btn-sm" onclick="confirmResetRoom('${room.id}')">🗑 이 강의실 배정 초기화</button>
+        <button class="btn btn-danger btn-sm" onclick="confirmResetRoom('${room.id}')"> 이 강의실 배정 초기화</button>
       </div>
       ${infoBar}${ccBar}${noticeEdit}
       ${!isProctor?'<div class="bbar">칠 판</div>':''}
@@ -2504,14 +2519,14 @@ function uaHtml(room,ua){
       data-hak="${(s.학번||'').replace(/"/g,'')}"
       ondragstart="onDragStart(event,'unassigned','${room.id}',0,${s._i})" ondragend="onDragEnd(event)"
       onclick="openEditStu(${s._i})">
-      ${s._mismatch?'⚠ ':''}${gBdg(s)}${tBdg(s)}<span>${s.이름}</span><span class="ua-mini">${s.학번}</span>
+      ${s._mismatch?' ':''}${gBdg(s)}${tBdg(s)}<span>${s.이름}</span><span class="ua-mini">${s.학번}</span>
       ${s._mismatch?`<span class="ua-mini" style="color:#ef4444">(${s.고사장||'?'})</span>`:''}
     </div>`).join('');
   const mc=ua.filter(s=>s._mismatch).length;
   return`<div class="ua-panel">
-    <div class="ua-hd">⚠ 좌석 미배정 학생 <b>${ua.length}명</b>
+    <div class="ua-hd"> 좌석 미배정 학생 <b>${ua.length}명</b>
       ${mc?`<span style="font-size:10px;background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:8px">강의실 불일치 ${mc}명</span>`:''}
-      <span style="margin-left:auto;font-size:10px;opacity:.8;color:#15803d;font-weight:700">💡 학생을 원하는 빈 좌석 위로 드래그해서 놓으세요</span>
+      <span style="margin-left:auto;font-size:10px;opacity:.8;color:#15803d;font-weight:700"> 학생을 원하는 빈 좌석 위로 드래그해서 놓으세요</span>
     </div>
     <div class="ua-body">${chips}</div>
   </div>`;
@@ -2613,7 +2628,7 @@ function showStusListModal(title, students, info, goRoomId){
                 ${mappedHtml}
                 <span style="font-size:10px;color:${s.탐구?'var(--sl400)':'#dc2626'}">${s.탐구||'탐구 미지정'}</span>
               </span>
-              ${_adminMode?`<button class="btn btn-xs" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:2px 8px;font-size:10px;font-weight:700;cursor:pointer;border-radius:4px" onclick="event.stopPropagation();_deleteStuFromList(${s._i})" title="이 학생을 명단에서 완전 삭제">🗑</button>`:''}
+              ${_adminMode?`<button class="btn btn-xs" style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:2px 8px;font-size:10px;font-weight:700;cursor:pointer;border-radius:4px" onclick="event.stopPropagation();_deleteStuFromList(${s._i})" title="이 학생을 명단에서 완전 삭제"></button>`:''}
             </div>`;
           }).join('')}
         </div>
@@ -2740,7 +2755,7 @@ function _stusListBulkDelete(){
   if(!targets.length){toast('학생 찾기 실패','err');return;}
   // 확인
   const names=targets.slice(0,5).map(s=>s.이름).join(', ')+(targets.length>5?` 외 ${targets.length-5}명`:'');
-  if(!confirm(`⚠ 선택한 ${targets.length}명을 명단에서 완전히 삭제합니다.\n\n대상: ${names}\n\n· 학생 데이터가 완전히 사라집니다\n· 되돌리려면 ↩ 취소 또는 재업로드 필요\n\n계속하시겠습니까?`)) return;
+  if(!confirm(` 선택한 ${targets.length}명을 명단에서 완전히 삭제합니다.\n\n대상: ${names}\n\n· 학생 데이터가 완전히 사라집니다\n· 되돌리려면 ↩ 취소 또는 재업로드 필요\n\n계속하시겠습니까?`)) return;
   saveUndo();
   const idsSet=new Set(ids);
   S.students=S.students.filter(s=>!idsSet.has(s._i));
@@ -2748,7 +2763,7 @@ function _stusListBulkDelete(){
   saveAll();
   closeModal('stus-list-modal');
   renderAll();
-  toast(`✅ ${targets.length}명 완전 삭제됨`,'ok');
+  toast(` ${targets.length}명 완전 삭제됨`,'ok');
   writeLog('학생 일괄 삭제', `${targets.length}명 [명단 모달]`);
   _stusListSelected.clear();
 }
@@ -2760,7 +2775,7 @@ function _deleteStuFromList(stuIdx){
   const choice=confirm(`"${stu.이름}"(${stu.학번}) 학생 처리\n\n[확인] 완전 삭제 (명단에서 제거)\n[취소] 취소`);
   if(!choice) return;
   // 완전 삭제 재확인
-  if(!confirm(`⚠ "${stu.이름}"을 명단에서 완전히 삭제합니다. 되돌리려면 ↩ 취소 또는 재업로드 필요.\n\n계속하시겠습니까?`)) return;
+  if(!confirm(` "${stu.이름}"을 명단에서 완전히 삭제합니다. 되돌리려면 ↩ 취소 또는 재업로드 필요.\n\n계속하시겠습니까?`)) return;
   saveUndo();
   const idx=S.students.findIndex(s=>s._i===stu._i);
   if(idx>=0) S.students.splice(idx,1);
@@ -2790,7 +2805,7 @@ function openSetExamModal(roomId,extraInfo){
   const sorted=_sortedExams();
   const list=document.getElementById('set-exam-list');
   if(!sorted.length){
-    list.innerHTML='<div class="empty-state" style="padding:20px">등록된 모의고사가 없습니다.<br><span style="font-size:11px;color:var(--sl400)">⚙ 설정 → 모의고사 목록에서 추가하세요.</span></div>';
+    list.innerHTML='<div class="empty-state" style="padding:20px">등록된 모의고사가 없습니다.<br><span style="font-size:11px;color:var(--sl400)"> 설정 → 모의고사 목록에서 추가하세요.</span></div>';
   } else {
     const today=new Date();today.setHours(0,0,0,0);
     list.innerHTML=sorted.map(et=>{
@@ -2884,12 +2899,12 @@ function renderStats(){
       <div class="stats-filter-bar">
         <span style="font-size:11px;font-weight:700;color:var(--sl500)">모의고사 필터</span>
         <select class="stats-sel" onchange="_statsExam=this.value;renderStats()">${examOpts}</select>
-        ${isAuto?`<span style="font-size:10px;font-weight:600;color:#15803d;background:#dcfce7;padding:2px 7px;border-radius:10px">📅 시행 예정 자동선택</span>`:''}
+        ${isAuto?`<span style="font-size:10px;font-weight:600;color:#15803d;background:#dcfce7;padding:2px 7px;border-radius:10px"> 시행 예정 자동선택</span>`:''}
         ${ef?`<span style="font-size:11px;color:var(--sl400)">${fRooms.length}개 강의실 · ${total}명${excludedCount?` <span style="color:#c2410c">(${excludedCount}개 제외)</span>`:''}</span>`:''}
       </div>
       ${allRoomsForExclude.length>0?`<div style="padding:10px 15px;border-top:1px solid var(--sl200);background:#fff">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap">
-          <span style="font-size:11px;font-weight:700;color:var(--sl500)">📊 통계 포함 강의실</span>
+          <span style="font-size:11px;font-weight:700;color:var(--sl500)"> 통계 포함 강의실</span>
           <button class="btn btn-ghost btn-xs" onclick="setAllStatsRooms(true)" style="font-size:10px;padding:2px 7px">전체 선택</button>
           <button class="btn btn-ghost btn-xs" onclick="setAllStatsRooms(false)" style="font-size:10px;padding:2px 7px">전체 해제</button>
           <span style="font-size:10px;color:var(--sl400)">체크 해제하면 통계에서 빠집니다 (Firestore 저장됨)</span>
@@ -2973,7 +2988,7 @@ function renderEdit(room){
   document.getElementById('exam-row').style.display='';
   const cells=[...room.cells].sort((a,b)=>a.r-b.r||a.c-b.c);
   const colTpl=Array(room.cols).fill(0).map((_,ci)=>{
-    return room.cells.some(c=>c.c===ci&&c.state!=='void')?'44px':'8px';
+    return room.cells.some(c=>c.c===ci&&c.state!=='void')?'72px':'14px'; /* QSA: 배열편집 칸 크게 */
   }).join(' ');
   const ecHTML=cells.map(cell=>`
     <div class="ec ${cell.state}" onclick="togCell('${room.id}',${cell.r},${cell.c})">
@@ -2984,16 +2999,16 @@ function renderEdit(room){
   document.getElementById('main').innerHTML=`
     <div class="card">
       <div class="card-hd">
-        <div class="card-title">⚙ ${room.name} 배열 편집</div>
+        <div class="card-title"> ${room.name} 배열 편집</div>
         <div style="display:flex;gap:6px;align-items:center">
           <span style="font-size:11px;color:var(--amber);font-weight:600">※ 수정 후 배열 저장 필수</span>
           <button class="btn btn-sec btn-sm" onclick="allState('${room.id}','active')">전체 활성</button>
         </div>
       </div>
       <div class="edit-hint">
-        클릭 순환: <b>활성</b>(파랑) → <b>미사용</b>(주황) → <b>없음</b>(회색) → 활성<br>
+        클릭 순환: <b>활성</b>(청록) → <b>미사용</b>(주황) → <b>없음</b>(회색) → 활성<br>
         큰숫자 = 화면 표시 번호(가로순) / <small>작은숫자 = 업로드 번호(세로순, 활성만)</small><br>
-        ⚠ 이 배열은 학생 초기화와 무관하게 유지됩니다.
+         이 배열은 학생 초기화와 무관하게 유지됩니다.
       </div>
       <div class="edit-legend">
         <span style="font-size:10px;font-weight:700;color:var(--sl500)">범례</span>
@@ -3015,8 +3030,8 @@ function renderEdit(room){
           <button class="pm-btn" onclick="addCol('${room.id}')">＋</button>
         </div>
         <button class="btn btn-sec btn-sm" style="margin-left:8px" onclick="_rzId='${room.id}';document.getElementById('rz-rows').value=${room.rows};document.getElementById('rz-cols').value=${room.cols};openModal('rz-modal')">전체 초기화 후 변경</button>
-        <button class="btn btn-sec btn-sm" onclick="forceRenumRoom('${room.id}')" title="업로드 번호를 다시 계산합니다 (열 우선, 각 열은 위→아래)">🔄 번호 재계산</button>
-        <button class="btn btn-green btn-sm" onclick="saveLayoutNow()">💾 배열 저장</button>
+        <button class="btn btn-sec btn-sm" onclick="forceRenumRoom('${room.id}')" title="업로드 번호를 다시 계산합니다 (열 우선, 각 열은 위→아래)"> 번호 재계산</button>
+        <button class="btn btn-green btn-sm" onclick="saveLayoutNow()"> 배열 저장</button>
       </div>
       <div class="egrid-wrap">
         <div class="egrid" style="grid-template-columns:${colTpl}">${ecHTML}</div>
@@ -3031,14 +3046,14 @@ function clickSeat(roomId,n,dn){
   if(dn!=null && n==null){
     const cell=getRoom(roomId)?.cells.find(c=>c.dn===dn&&c.state==='blocked');
     if(!cell) return;
-    if(!S.editStudentMode){toast('✎ 개별편집 버튼을 먼저 켜주세요','err');return;}
+    if(!S.editStudentMode){toast(' 개별편집 버튼을 먼저 켜주세요','err');return;}
     const forceStu=seatStuByDn(roomId,dn);
     if(forceStu) openEditStu(forceStu._i);
     return;
   }
   const cell=getRoom(roomId)?.cells.find(c=>c.n===n);
   if(cell?.state==='blocked') return;
-  if(!S.editStudentMode){toast('✎ 개별편집 버튼을 먼저 켜주세요','err');return;}
+  if(!S.editStudentMode){toast(' 개별편집 버튼을 먼저 켜주세요','err');return;}
   const stu=seatStu(roomId,n);
   if(stu) openEditStu(stu._i);
   else openAddStu(roomId,n);
@@ -3090,7 +3105,7 @@ function _stopAutoScroll(){
 }
 
 function onDragStart(e,type,roomId,cellN,stuIdx){
-  if(!S.editStudentMode){e.preventDefault();toast('✎ 개별편집 버튼을 먼저 켜주세요','err');return false;}
+  if(!S.editStudentMode){e.preventDefault();toast(' 개별편집 버튼을 먼저 켜주세요','err');return false;}
   dragSrc={type,roomId,cellN,stuIdx};
   e.dataTransfer.effectAllowed='move';
   e.dataTransfer.setData('text/plain','drag');
@@ -3126,7 +3141,7 @@ function onDrop(e,tRid,tN,tDn){
     if(!srcStu){dragSrc=null;return;}
     // blocked 좌석 강제 배정 confirm
     const existing=seatStuByDn(tRid,tDn);
-    let msg=`⚠ 미사용 좌석(${tRid} ${tDn}번)에 학생을 강제 배정합니다.\n\n· 좌석은 여전히 "미사용" 상태로 유지됩니다\n· 이 학생만 예외적으로 이 자리에 앉힙니다`;
+    let msg=` 미사용 좌석(${tRid} ${tDn}번)에 학생을 강제 배정합니다.\n\n· 좌석은 여전히 "미사용" 상태로 유지됩니다\n· 이 학생만 예외적으로 이 자리에 앉힙니다`;
     if(existing && existing._i!==srcStu._i){
       msg+=`\n· 현재 "${existing.이름}"이 강제 배정되어 있어 미배정으로 밀립니다`;
     }
@@ -3150,7 +3165,7 @@ function onDrop(e,tRid,tN,tDn){
     srcStu._forceDn=tDn;
     srcStu._mismatch=false;
     saveAll();renderAll();
-    toast(`✅ ${srcStu.이름} → ${tRid} ${tDn}번 (미사용 좌석 강제 배정)`,'ok');
+    toast(` ${srcStu.이름} → ${tRid} ${tDn}번 (미사용 좌석 강제 배정)`,'ok');
     dragSrc=null;return;
   }
   const tc=getRoom(tRid)?.cells.find(c=>c.n===tN);
@@ -3161,13 +3176,13 @@ function onDrop(e,tRid,tN,tDn){
     if(!srcStu){dragSrc=null;return;}
     const disp=S.students.find(s=>s.고사장===tRid&&+s.자리===tN);
     if(disp && disp._i!==srcStu._i){
-      if(!confirm(`⚠ "${disp.이름}"(${disp.학번}) 학생이 이미 앉아있는 자리입니다.\n\n[확인] → "${disp.이름}"을 미배정으로 밀어내고 이동\n[취소] → 이동 취소`)){dragSrc=null;renderAll();return;}
+      if(!confirm(` "${disp.이름}"(${disp.학번}) 학생이 이미 앉아있는 자리입니다.\n\n[확인] → "${disp.이름}"을 미배정으로 밀어내고 이동\n[취소] → 이동 취소`)){dragSrc=null;renderAll();return;}
     }
     saveUndo();
     if(disp && disp._i!==srcStu._i){disp.고사장='';disp.자리=0;delete disp._forceDn;}
     delete srcStu._forceDn; // 강제 배정 해제
     srcStu.고사장=tRid;srcStu.자리=tN;srcStu._mismatch=false;
-    saveAll();renderAll();toast(`✅ ${srcStu.이름} → ${tRid} ${tN}번 (미사용 좌석 해제, 정상 배정)`,'ok');
+    saveAll();renderAll();toast(` ${srcStu.이름} → ${tRid} ${tN}번 (미사용 좌석 해제, 정상 배정)`,'ok');
     dragSrc=null;return;
   }
   if(dragSrc.type==='seat' || dragSrc.type==='seat-blocked'){
@@ -3207,14 +3222,14 @@ function onDrop(e,tRid,tN,tDn){
     const stu=S.students.find(s=>s._i===dragSrc.stuIdx);if(!stu) return;
     const disp=S.students.find(s=>s.고사장===tRid&&+s.자리===tN);
     if(disp && disp._i!==stu._i){
-      if(!confirm(`⚠ "${disp.이름}"(${disp.학번}) 학생이 이미 앉아있는 자리입니다.\n\n[확인] → "${disp.이름}"을 미배정으로 밀어내고 "${stu.이름}" 배치\n[취소] → 이동 취소`)){
+      if(!confirm(` "${disp.이름}"(${disp.학번}) 학생이 이미 앉아있는 자리입니다.\n\n[확인] → "${disp.이름}"을 미배정으로 밀어내고 "${stu.이름}" 배치\n[취소] → 이동 취소`)){
         dragSrc=null;renderAll();return;
       }
     }
     saveUndo();
     if(disp && disp._i!==stu._i){disp.고사장='';disp.자리=0;}
     stu.고사장=tRid;stu.자리=tN;stu._mismatch=false;
-    saveAll();renderAll();toast(`✅ ${stu.이름} → ${tRid} 배치됨`,'ok');
+    saveAll();renderAll();toast(` ${stu.이름} → ${tRid} 배치됨`,'ok');
     dragSrc=null;return;
   }
   dragSrc=null;S.swap=null;renderAll();
@@ -3232,13 +3247,13 @@ function allState(roomId,state){
   const room=getRoom(roomId);room.cells.forEach(c=>c.state=state);
   renum(room.cells);saveTempLocal();renderMain();
 }
-// 강제 재번호: 사용자가 [🔄 번호 재계산] 버튼 누르면
+// 강제 재번호: 사용자가 [ 번호 재계산] 버튼 누르면
 function forceRenumRoom(roomId){
   const room=getRoom(roomId);if(!room){toast('강의실 없음','err');return;}
   renum(room.cells);
   saveTempLocal();
   renderMain();
-  toast('✅ 업로드 번호 재계산 완료 (열 우선, 각 열은 위→아래)','ok');
+  toast(' 업로드 번호 재계산 완료 (열 우선, 각 열은 위→아래)','ok');
 }
 
 /* ═══ ROOM MANAGEMENT ═══ */
@@ -3265,7 +3280,7 @@ function doResize(){
   if(!r||!c){toast('값 필요','err');return;}
   room.rows=r;room.cols=c;room.cells=mkCells(r,c);renum(room.cells);
   saveTempLocal();renderMain();closeModal('rz-modal');
-  toast(`${room.name}: ${r}행×${c}열 — 💾 배열 저장 버튼을 눌러 반영하세요`,'');
+  toast(`${room.name}: ${r}행×${c}열 —  배열 저장 버튼을 눌러 반영하세요`,'');
 }
 function renameRoom(oldId){
   const nw=prompt(`"${oldId}" 강의실 이름 변경:`,oldId);
@@ -3303,7 +3318,7 @@ function saveRoomExam(){
     msgs.push(`• 이미 다른 강의실(${otherRooms.map(r=>r.name).join(', ')})에 "${pendingExam}"이(가) 설정되어 있습니다.`);
   }
   if(msgs.length){
-    if(!confirm(`⚠ 모의고사 저장 확인\n\n${msgs.join('\n\n')}\n\n계속 진행하시겠습니까?`)) return;
+    if(!confirm(` 모의고사 저장 확인\n\n${msgs.join('\n\n')}\n\n계속 진행하시겠습니까?`)) return;
   }
   room.examType=pendingExam;saveAll();renderMain();
   toast(`${room.name}: "${pendingExam}" 저장`,'ok');
@@ -3315,7 +3330,7 @@ function openSaveExamModal(){
   const room=getRoom(S.active);
   if(!room){toast('강의실이 선택되지 않았습니다','err');return;}
   if(!S.examTypes?.length){
-    alert('등록된 모의고사가 없습니다.\n⚙ 설정 → 모의고사 목록에서 추가해주세요.');
+    alert('등록된 모의고사가 없습니다.\n 설정 → 모의고사 목록에서 추가해주세요.');
     return;
   }
   const body=document.getElementById('save-exam-body');
@@ -3338,13 +3353,13 @@ function openSaveExamModal(){
           onclick="saveExamAs('${et.name.replace(/'/g,'')}')">
           <div style="flex:1">
             <span style="font-weight:700;font-size:13px;color:var(--ink)">${et.name}</span>${dateStr}${conflictBadge}
-            ${isCur?'<span style="font-size:10px;color:#15803d;margin-left:8px">✓ 현재 설정</span>':''}
+            ${isCur?'<span style="font-size:10px;color:#15803d;margin-left:8px"> 현재 설정</span>':''}
           </div>
         </button>`;
       }).join('')}
     </div>
     <div style="margin-top:12px;padding:8px 11px;background:#fffbeb;border-radius:7px;font-size:11px;color:#92400e;border:1px solid #fde68a;line-height:1.5">
-      💡 선택한 모의고사로 이 강의실의 배치가 저장됩니다. 변경 시 확인 다이얼로그가 추가로 표시됩니다.
+       선택한 모의고사로 이 강의실의 배치가 저장됩니다. 변경 시 확인 다이얼로그가 추가로 표시됩니다.
     </div>`;
   openModal('save-exam-modal');
 }
@@ -3365,7 +3380,7 @@ function saveExamAs(examName){
     msgs.push(`• 이미 다른 강의실(${otherRooms.map(r=>r.name).join(', ')})에 "${examName}"이(가) 설정되어 있습니다.`);
   }
   if(msgs.length){
-    if(!confirm(`⚠ 모의고사 저장 확인\n\n${msgs.join('\n\n')}\n\n계속 진행하시겠습니까?`)){return;}
+    if(!confirm(` 모의고사 저장 확인\n\n${msgs.join('\n\n')}\n\n계속 진행하시겠습니까?`)){return;}
   }
   room.examType=examName;
   pendingExam=examName;
@@ -3470,10 +3485,10 @@ function forceMoveStu(){
     const anyCell=tRoom.cells.find(c=>c.dn===tDn);
     if(anyCell){
       const stateLabel=anyCell.state==='blocked'?'미사용 좌석':'좌석 아님';
-      toast(`❌ ${tRid} ${tDn}번은 ${stateLabel}입니다`,'err');
+      toast(` ${tRid} ${tDn}번은 ${stateLabel}입니다`,'err');
     } else {
       const maxDn=Math.max(...tRoom.cells.map(c=>c.dn||0));
-      toast(`❌ ${tRid}에 ${tDn}번 좌석이 없습니다 (범위: 1~${maxDn})`,'err');
+      toast(` ${tRid}에 ${tDn}번 좌석이 없습니다 (범위: 1~${maxDn})`,'err');
     }
     return;
   }
@@ -3485,7 +3500,7 @@ function forceMoveStu(){
   if(shiftMode==='single'){
     const disp=S.students.find(s=>s.고사장===tRid&&+s.자리===tCell.n);
     if(disp){
-      alert(`⚠ 이미 "${disp.이름}" 학생이 배정된 자리입니다.\n다른 자리를 선택하거나 이동 방식을 변경해주세요.`);
+      alert(` 이미 "${disp.이름}" 학생이 배정된 자리입니다.\n다른 자리를 선택하거나 이동 방식을 변경해주세요.`);
       return;
     }
     stu.고사장=tRid;stu.자리=tCell.n;stu._mismatch=false;
@@ -3513,7 +3528,7 @@ function deleteStu(mode){
 
   // 완전 삭제 모드: confirm 필수
   if(mode==='remove'){
-    if(!confirm(`⚠ "${stu.이름}"(${stu.학번}) 학생을 명단에서 완전히 삭제합니다.\n\n· 학생 데이터가 완전히 사라집니다\n· 되돌리려면 ↩ 취소 버튼 또는 재업로드 필요\n\n계속하시겠습니까?`)) return;
+    if(!confirm(` "${stu.이름}"(${stu.학번}) 학생을 명단에서 완전히 삭제합니다.\n\n· 학생 데이터가 완전히 사라집니다\n· 되돌리려면 ↩ 취소 버튼 또는 재업로드 필요\n\n계속하시겠습니까?`)) return;
     saveUndo();
     const idx=S.students.findIndex(s=>s._i===stu._i);
     if(idx>=0) S.students.splice(idx,1);
@@ -3635,7 +3650,7 @@ function renderBanRoomMapList(){
       <b style="min-width:70px;font-family:monospace;color:#2563eb">${banName}</b>
       <input type="text" value="${banCode}" onchange="updateBanRoomMapCode('${banName}',this.value)" style="min-width:70px;padding:4px 7px;font-size:12px;border:1px solid var(--sl200);border-radius:5px;font-family:monospace">
       <select onchange="updateBanRoomMapRoom('${banName}',this.value)" style="flex:1;padding:4px 7px;font-size:12px;border:1px solid var(--sl200);border-radius:5px">${opts}</select>
-      <button class="btn btn-danger btn-xs" onclick="removeBanRoomMap('${banName}')" title="이 매핑 삭제">✕</button>
+      <button class="btn btn-danger btn-xs" onclick="removeBanRoomMap('${banName}')" title="이 매핑 삭제"></button>
     </div>`;
   }).join('');
   el.innerHTML=html;
@@ -3705,13 +3720,13 @@ function autoFillBanRoomMap(){
   if(!count){toast('생성할 매핑 없음 (반이름/고사장 정보 부족)','err');return;}
   let msg=`현재 학생 데이터에서 ${count}개의 매핑을 생성합니다.`;
   if(conflicts.length){
-    msg+=`\n\n⚠ 한 반이름인데 서로 다른 강의실/반코드 (${conflicts.length}개):\n${conflicts.join(', ')}\n→ 첫 번째 학생 기준으로 매핑됨`;
+    msg+=`\n\n 한 반이름인데 서로 다른 강의실/반코드 (${conflicts.length}개):\n${conflicts.join(', ')}\n→ 첫 번째 학생 기준으로 매핑됨`;
   }
   msg+='\n\n계속하시겠습니까? (기존 매핑은 덮어씌워집니다)';
   if(!confirm(msg)) return;
   S.banRoomMap=newMap;
   saveAll();renderBanRoomMapList();
-  toast(`✅ ${count}개 매핑 생성 완료`,'ok');
+  toast(` ${count}개 매핑 생성 완료`,'ok');
   writeLog('반-강의실 매핑 자동생성', `${count}개`);
 }
 
@@ -3739,7 +3754,7 @@ function renderExamList(){
         ?`<div class="li-sub" style="margin-top:2px">사용 중: <b>${usedRooms.length}개 강의실</b> (${usedRooms.map(r=>r.name).join(', ')}) · 학생 <b>${usedStuCount}</b>명</div>`
         :`<div class="li-sub" style="margin-top:2px;color:var(--sl400)">사용 중인 강의실 없음</div>`;
       const resetBtn=(_adminMode && usedRooms.length>0)
-        ?`<button class="btn btn-sec btn-xs" style="color:#991b1b;border-color:#fecaca;background:#fef2f2" onclick="resetExamSeats(${i})" title="이 모의고사가 설정된 강의실들의 학생만 일괄 초기화">🗑 좌석 초기화</button>`
+        ?`<button class="btn btn-sec btn-xs" style="color:#991b1b;border-color:#fecaca;background:#fef2f2" onclick="resetExamSeats(${i})" title="이 모의고사가 설정된 강의실들의 학생만 일괄 초기화"> 좌석 초기화</button>`
         :'';
       return`<div class="li-item" style="flex-direction:column;align-items:stretch;gap:6px">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -3783,9 +3798,9 @@ function resetExamSeats(idx){
   if(!targetStus.length){
     if(!confirm(`"${et.name}" 모의고사가 설정된 강의실(${targetIds.join(', ')})에 배정된 학생이 없습니다.\n그래도 계속하시겠습니까?`)) return;
   } else {
-    if(!confirm(`⚠ "${et.name}" 모의고사가 설정된 ${usedRooms.length}개 강의실(${targetIds.join(', ')})의\n학생 ${targetStus.length}명을 완전 삭제합니다.\n\n· 좌석 구조, 모의고사 설정, 스냅샷은 유지됩니다\n· 학생 데이터 자체가 사라지므로 새로 업로드해야 합니다\n\n계속하시겠습니까?`)) return;
+    if(!confirm(` "${et.name}" 모의고사가 설정된 ${usedRooms.length}개 강의실(${targetIds.join(', ')})의\n학생 ${targetStus.length}명을 완전 삭제합니다.\n\n· 좌석 구조, 모의고사 설정, 스냅샷은 유지됩니다\n· 학생 데이터 자체가 사라지므로 새로 업로드해야 합니다\n\n계속하시겠습니까?`)) return;
   }
-  const pw=prompt('⚠ 좌석 초기화 비밀번호를 입력하세요:');
+  const pw=prompt(' 좌석 초기화 비밀번호를 입력하세요:');
   if(pw===null) return;
   if(pw!=='6688'){alert('비밀번호가 틀렸습니다.');return;}
   const removedCount=targetStus.length;
@@ -3793,7 +3808,7 @@ function resetExamSeats(idx){
   S.students.forEach((s,i)=>s._i=i);
   saveAll();renderAll();renderSettingsContent();
   writeLog('모의고사 좌석 초기화', `${et.name} · ${usedRooms.length}개 강의실 · ${removedCount}명 삭제`);
-  toast(`✅ "${et.name}" — ${usedRooms.length}개 강의실 · ${removedCount}명 초기화 완료`,'ok');
+  toast(` "${et.name}" — ${usedRooms.length}개 강의실 · ${removedCount}명 초기화 완료`,'ok');
 }
 
 /* ═══ 옛 스냅샷 마이그레이션 (메인 문서 → 새 컬렉션) ═══ */
@@ -3826,18 +3841,18 @@ async function migrateOldSnapshots(){
   }
 
   if(failed===0 && success===oldSnaps.length){
-    if(confirm(`✅ ${success}개 모두 복사 성공!\n\n옛 위치(메인 문서)에서 정리하시겠습니까?\n(메인 문서가 가벼워져 1MB 한도 회피)`)){
+    if(confirm(` ${success}개 모두 복사 성공!\n\n옛 위치(메인 문서)에서 정리하시겠습니까?\n(메인 문서가 가벼워져 1MB 한도 회피)`)){
       S.snapshots=[];
       saveAll();
-      toast(`✅ 마이그레이션 완료 — ${success}건`,'ok');
+      toast(` 마이그레이션 완료 — ${success}건`,'ok');
       writeLog('스냅샷 마이그레이션', `${success}건 → 새 컬렉션`);
     } else {
       toast(`복사만 완료 — 옛 위치는 그대로`,'ok');
     }
   } else {
-    alert(`⚠ 일부 실패\n성공: ${success}건\n실패: ${failed}건\n\n옛 위치는 그대로 둡니다. 다시 시도하거나 문의해주세요.`);
+    alert(` 일부 실패\n성공: ${success}건\n실패: ${failed}건\n\n옛 위치는 그대로 둡니다. 다시 시도하거나 문의해주세요.`);
   }
-  if(btn){btn.disabled=false;btn.textContent='🔄 옛 스냅샷 옮기기';}
+  if(btn){btn.disabled=false;btn.textContent=' 옛 스냅샷 옮기기';}
   renderSnapList();
 }
 
@@ -3849,8 +3864,8 @@ function renderSnapList(){
   const oldCount=S.snapshots.length;
   const migBanner=oldCount>0 && _adminMode
     ? `<div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;line-height:1.6">
-        ⚠ <b>옛 위치(메인 문서)에 ${oldCount}개의 스냅샷</b>이 남아있습니다. 1MB 한도 회피를 위해 별도 컬렉션으로 옮기세요.<br>
-        <button class="btn btn-pri btn-sm" style="margin-top:6px" onclick="migrateOldSnapshots()">🔄 옛 스냅샷 옮기기</button>
+         <b>옛 위치(메인 문서)에 ${oldCount}개의 스냅샷</b>이 남아있습니다. 1MB 한도 회피를 위해 별도 컬렉션으로 옮기세요.<br>
+        <button class="btn btn-pri btn-sm" style="margin-top:6px" onclick="migrateOldSnapshots()"> 옛 스냅샷 옮기기</button>
        </div>`
     : '';
   el.innerHTML=migBanner+(all.length
@@ -3861,7 +3876,7 @@ function renderSnapList(){
           <div style="flex:1"><div class="li-name">${sn.name}${oldBadge}</div>
             <div class="li-sub">${sn.date} · 학생 ${sn.students.length}명 · 강의실 ${sn.rooms.length}개</div></div>
           <button class="btn btn-sec btn-sm" onclick="loadSnap('${sn.id}')">불러오기</button>
-          <button class="btn btn-green btn-sm" onclick="downloadSnapExcel('${sn.id}')">⬇ 다운로드</button>
+          <button class="btn btn-green btn-sm" onclick="downloadSnapExcel('${sn.id}')"> 다운로드</button>
           <button class="btn btn-danger btn-xs" onclick="removeSnap('${sn.id}')">삭제</button>
         </div>`;
       }).join('')
@@ -3910,7 +3925,7 @@ async function renderUserList(){
         return`<div class="li-item">
           <div style="flex:1">
             <div class="li-name">${u.name||'(이름없음)'}</div>
-            <div class="li-sub">${u.email} · ${u.approved?'✅ 승인됨':'⏳ 대기중'}</div>
+            <div class="li-sub">${u.email} · ${u.approved?' 승인됨':'⏳ 대기중'}</div>
           </div>
           ${!u.approved
             ?`<button class="btn btn-green btn-sm" onclick="approveUser('${d.id}','${u.name}','${u.email}')">승인</button>`
@@ -3924,7 +3939,7 @@ async function renderUserList(){
 async function approveUser(uid,name,email){
   await USERS.doc(uid).update({approved:true});
   writeLog('접속 승인', `${name} (${email})`);
-  sendJandi('✅ QUETTA 접속 승인 완료',`${name} (${email}) 승인됨`,'#15803d');
+  sendJandi(' QUETTA 접속 승인 완료',`${name} (${email}) 승인됨`,'#15803d');
   toast(`${name} 승인 완료`,'ok');
   renderUserList();renderUserList(); // 토글 후 다시 열기
 }
@@ -3961,7 +3976,7 @@ function doSaveSnap(){
             ${already?'<span style="font-size:10px;color:var(--sl400)">덮어쓰기</span>':'<span style="font-size:10px;color:var(--green)">새로 저장</span>'}
           </button>`;
         }).join('')
-      :'<div class="empty-state" style="padding:16px">등록된 모의고사가 없습니다.<br>⚙ 설정 → 모의고사 목록에서 추가해주세요.</div>';
+      :'<div class="empty-state" style="padding:16px">등록된 모의고사가 없습니다.<br> 설정 → 모의고사 목록에서 추가해주세요.</div>';
     document.getElementById('snap-custom-name').value='';
   }
   openModal('snap-save-modal');
@@ -4116,7 +4131,7 @@ function lrsApply(mode, targetRoomId){
   renderAll();
   closeModal('snap-view-modal');
   const modeLabel=mode==='full'?'통째 복원':'학생만 교체';
-  let toastMsg=`✅ "${target}" 강의실에 ${modeLabel} 완료 — 신규 ${added}명, 갱신 ${updated}명 (저장됨)`;
+  let toastMsg=` "${target}" 강의실에 ${modeLabel} 완료 — 신규 ${added}명, 갱신 ${updated}명 (저장됨)`;
   if(examTypeCleared){
     toastMsg+=` · 시행 종료된 모의고사라 강의실 모의고사 설정을 비웠습니다. 새 모의고사로 설정해주세요.`;
   }
@@ -4124,7 +4139,7 @@ function lrsApply(mode, targetRoomId){
   writeLog('지난배치 불러오기', `"${sn.name}/${snapRoom.name}" → ${target} (${modeLabel}, +${added}/~${updated})${examTypeCleared?', examType 비움':''}`);
   // examType이 비워졌으면 사용자가 모의고사 선택할 수 있게 모달 띄움
   if(examTypeCleared){
-    setTimeout(()=>openSetExamModal(target, `📌 이 강의실의 모의고사 <b>"${clearedExamName}"</b>는 시행 종료된 모의고사라 학생이 화면에 보이지 않았습니다.<br>자동으로 비웠으니 적용할 새 모의고사를 선택하세요.`), 400);
+    setTimeout(()=>openSetExamModal(target, ` 이 강의실의 모의고사 <b>"${clearedExamName}"</b>는 시행 종료된 모의고사라 학생이 화면에 보이지 않았습니다.<br>자동으로 비웠으니 적용할 새 모의고사를 선택하세요.`), 400);
   }
 }
 function lrsApply_orig(mode){/* deprecated — replaced by lrsApply above */}
@@ -4152,18 +4167,18 @@ function renderSnapViewerList(){
   const all=getAllSnaps();
   // 상단 툴바 (새로고침)
   const toolbar=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;flex-wrap:wrap">
-    <div style="font-size:11px;color:var(--sl500)">저장된 배치를 클릭하면 좌석 배열을 미리볼 수 있습니다. <span style="color:var(--sl400)">(다른 사용자가 저장한 것도 [🔄 새로고침]으로 확인)</span></div>
-    <button class="btn btn-sec btn-xs" onclick="_refreshSnapList()" title="Firebase에서 최신 스냅샷 목록을 다시 불러옵니다">🔄 새로고침</button>
+    <div style="font-size:11px;color:var(--sl500)">저장된 배치를 클릭하면 좌석 배열을 미리볼 수 있습니다. <span style="color:var(--sl400)">(다른 사용자가 저장한 것도 [ 새로고침]으로 확인)</span></div>
+    <button class="btn btn-sec btn-xs" onclick="_refreshSnapList()" title="Firebase에서 최신 스냅샷 목록을 다시 불러옵니다"> 새로고침</button>
   </div>`;
   if(!all.length){
-    list.innerHTML=toolbar+'<div class="empty-state" style="padding:40px">저장된 배치가 없습니다.<br><span style="font-size:11px;color:var(--sl400)">⚙ 설정 → 저장/불러오기 또는 💾 저장 버튼에서 현재 배치를 저장할 수 있습니다.</span></div>';
+    list.innerHTML=toolbar+'<div class="empty-state" style="padding:40px">저장된 배치가 없습니다.<br><span style="font-size:11px;color:var(--sl400)"> 설정 → 저장/불러오기 또는  저장 버튼에서 현재 배치를 저장할 수 있습니다.</span></div>';
     return;
   }
   list.innerHTML=toolbar+
     [...all].reverse().map(sn=>{
       const adminBtns=_adminMode?`
         <button class="btn btn-sec btn-xs" onclick="event.stopPropagation();if(confirm('현재 배치를 \\'${sn.name}\\'로 덮어쓰시겠습니까?')){closeModal('snap-view-modal');loadSnap('${sn.id}');}">현재로 불러오기</button>
-        <button class="btn btn-green btn-xs" onclick="event.stopPropagation();downloadSnapExcel('${sn.id}')">⬇ 엑셀</button>`:'';
+        <button class="btn btn-green btn-xs" onclick="event.stopPropagation();downloadSnapExcel('${sn.id}')"> 엑셀</button>`:'';
       return`<div class="li-item" style="cursor:pointer" onclick="renderSnapViewerDetail('${sn.id}')">
         <div style="flex:1">
           <div class="li-name">${sn.name}</div>
@@ -4177,11 +4192,11 @@ function renderSnapViewerList(){
 // 스냅샷 목록 강제 새로고침 (다른 세션에서 저장된 것 반영)
 function _refreshSnapList(){
   const list=document.getElementById('snap-view-list');
-  if(list) list.innerHTML='<div class="empty-state" style="padding:20px">🔄 최신 스냅샷 불러오는 중...</div>';
+  if(list) list.innerHTML='<div class="empty-state" style="padding:20px"> 최신 스냅샷 불러오는 중...</div>';
   loadAllSnapsFromNewCollection().then(arr=>{
     S.newSnapshots=arr;
     renderSnapViewerList();
-    toast(`🔄 스냅샷 목록 갱신됨 (${arr.length}개)`,'ok');
+    toast(` 스냅샷 목록 갱신됨 (${arr.length}개)`,'ok');
   }).catch(e=>{
     renderSnapViewerList();
     toast('새로고침 실패: '+e.message,'err');
@@ -4270,7 +4285,7 @@ function renderSnapViewerDetail(snapId){
   const m=actualStus.filter(s=>s.성별==='남').length;
   const f=actualStus.filter(s=>s.성별==='여').length;
   // 관리자만: 전체 통째 불러오기 (S.rooms 자체를 통째로 교체 - loadSnap)
-  const adminFullLoadBtn=_adminMode?`<button class="btn btn-sec btn-sm" style="margin-left:auto;background:#fef2f2;color:#991b1b;border-color:#fecaca" onclick="if(confirm('⚠ 전체 강의실/학생 데이터를 \\'${sn.name}\\'로 덮어씁니다.\\n현재 모든 데이터가 사라집니다. 계속하시겠습니까?')){closeModal('snap-view-modal');loadSnap('${snapId}');}">⚠ 전체 통째 불러오기 (관리자)</button>`:'';
+  const adminFullLoadBtn=_adminMode?`<button class="btn btn-sec btn-sm" style="margin-left:auto;background:#fef2f2;color:#991b1b;border-color:#fecaca" onclick="if(confirm(' 전체 강의실/학생 데이터를 \\'${sn.name}\\'로 덮어씁니다.\\n현재 모든 데이터가 사라집니다. 계속하시겠습니까?')){closeModal('snap-view-modal');loadSnap('${snapId}');}"> 전체 통째 불러오기 (관리자)</button>`:'';
   // 부분 불러오기용 대상 강의실 결정
   const targetRoomId = (S.active && S.active!=='__stats__' && getRoom(S.active)) ? S.active : null;
   // 새 학생 수 계산
@@ -4280,7 +4295,7 @@ function renderSnapViewerDetail(snapId){
   const allRoomIds=S.rooms.map(r=>r.id);
   let targetUI='';
   if(targetRoomId){
-    targetUI=`<span><b style="color:var(--ink)">"${targetRoomId}"</b> 강의실에 적용 <span style="font-size:10px;color:var(--sl400)">(다른 강의실에 적용하려면 그 탭으로 이동 후 다시 [📚 지난배치]를 여세요)</span></span>`;
+    targetUI=`<span><b style="color:var(--ink)">"${targetRoomId}"</b> 강의실에 적용 <span style="font-size:10px;color:var(--sl400)">(다른 강의실에 적용하려면 그 탭으로 이동 후 다시 [ 지난배치]를 여세요)</span></span>`;
     _lrsTargetRoomId=targetRoomId;
   } else if(allRoomIds.length){
     // 통계 탭에서 열린 경우: select로 강의실 선택
@@ -4290,13 +4305,13 @@ function renderSnapViewerDetail(snapId){
       ${allRoomIds.map(rid=>`<option value="${rid}" ${rid===_lrsTargetRoomId?'selected':''}>${rid}</option>`).join('')}
     </select> 강의실에 적용`;
   } else {
-    targetUI='<span style="color:#991b1b">⚠ 적용 가능한 강의실 없음</span>';
+    targetUI='<span style="color:#991b1b"> 적용 가능한 강의실 없음</span>';
   }
   // 부분 불러오기 패널
   _lrsSnapId=snapId; _lrsSnapRoomId=room.id;
   const partialPanel = allRoomIds.length ? `
     <div style="margin-top:14px;border-top:1px solid var(--sl200);padding-top:14px">
-      <div style="font-size:11px;font-weight:700;color:var(--sl500);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">📥 이 강의실 배치를 현재로 불러오기</div>
+      <div style="font-size:11px;font-weight:700;color:var(--sl500);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em"> 이 강의실 배치를 현재로 불러오기</div>
       <div style="background:var(--sl50);border:1px solid var(--sl200);border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:12px;line-height:1.7">
         <div style="font-size:10px;color:var(--sl500);font-weight:700;margin-bottom:4px;letter-spacing:.04em">불러올 데이터</div>
         · 학생 ${actualStus.length}명 (활성 좌석 배정)<br>
@@ -4319,7 +4334,7 @@ function renderSnapViewerDetail(snapId){
         </button>
       </div>
       <div style="margin-top:8px;padding:7px 10px;background:#fffbeb;border-radius:6px;font-size:10px;color:#92400e;border:1px solid #fde68a;line-height:1.5">
-        ⚠ 적용 후 메모리에만 반영됩니다. [💾 저장] 눌러 Firebase에 확정해주세요.
+         적용 후 메모리에만 반영됩니다. [ 저장] 눌러 Firebase에 확정해주세요.
       </div>
     </div>` : '';
   detail.innerHTML=`
@@ -4331,13 +4346,13 @@ function renderSnapViewerDetail(snapId){
     </div>
     <div style="display:flex;gap:8px;margin-bottom:10px;align-items:center;flex-wrap:wrap;padding:8px 10px;background:var(--sl50);border-radius:8px;border:1px solid var(--sl200)">
       <div style="display:flex;gap:4px">
-        <button class="btn btn-xs ${_viewSnapMode==='student'?'btn-pri':'btn-sec'}" onclick="_viewSnapMode='student';renderSnapViewerDetail('${snapId}')">👨‍🎓 학생용</button>
-        <button class="btn btn-xs ${_viewSnapMode==='proctor'?'btn-pri':'btn-sec'}" onclick="_viewSnapMode='proctor';renderSnapViewerDetail('${snapId}')">👨‍🏫 시감자용</button>
+        <button class="btn btn-xs ${_viewSnapMode==='student'?'btn-pri':'btn-sec'}" onclick="_viewSnapMode='student';renderSnapViewerDetail('${snapId}')"> 학생용</button>
+        <button class="btn btn-xs ${_viewSnapMode==='proctor'?'btn-pri':'btn-sec'}" onclick="_viewSnapMode='proctor';renderSnapViewerDetail('${snapId}')"> 시감자용</button>
       </div>
       <span style="font-size:10px;color:var(--sl400)">${_viewSnapMode==='proctor'?'성별·탐구 배지 표시':'기본 학생용 화면'}</span>
       <div style="margin-left:auto;display:flex;gap:5px">
-        <button class="btn btn-sec btn-xs" onclick="printSnapRoom('${snapId}','${room.id}','${_viewSnapMode}')" title="이 강의실 배치를 인쇄">🖨 인쇄</button>
-        <button class="btn btn-green btn-xs" onclick="downloadSnapRoomExcel('${snapId}','${room.id}','${_viewSnapMode}')" title="이 강의실 배치표+명단 엑셀 다운로드">⬇ 엑셀</button>
+        <button class="btn btn-sec btn-xs" onclick="printSnapRoom('${snapId}','${room.id}','${_viewSnapMode}')" title="이 강의실 배치를 인쇄"> 인쇄</button>
+        <button class="btn btn-green btn-xs" onclick="downloadSnapRoomExcel('${snapId}','${room.id}','${_viewSnapMode}')" title="이 강의실 배치표+명단 엑셀 다운로드"> 엑셀</button>
       </div>
     </div>
     <div style="display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--sl200)">${roomTabs}</div>
@@ -4345,7 +4360,7 @@ function renderSnapViewerDetail(snapId){
       <span><b style="color:var(--ink)">${room.name}</b>${room.examType?` · ${room.examType}`:''}</span>
       <span>배정 <b style="color:var(--ink)">${actualStus.length}</b>명</span>
       <span>남 <b>${m}</b> / 여 <b>${f}</b></span>
-      ${room.notice?`<span style="background:#fefce8;border-left:3px solid #fde047;padding:2px 7px;color:#78350f">📌 ${room.notice}</span>`:''}
+      ${room.notice?`<span style="background:#fefce8;border-left:3px solid #fde047;padding:2px 7px;color:#78350f"> ${room.notice}</span>`:''}
     </div>
     <div style="border:1px solid var(--sl200);border-radius:8px;padding:14px;overflow-x:auto;background:var(--sl50)">
       <div style="background:linear-gradient(135deg,#1e3a5f,#1e293b);border-radius:5px;padding:5px;text-align:center;font-size:11px;font-weight:700;letter-spacing:.12em;color:rgba(255,255,255,.7);margin-bottom:8px;max-width:${seatW*room.cols+28*colEmpty.filter(e=>e).length+room.cols*3}px;margin-left:auto;margin-right:auto">칠 판</div>
@@ -4372,22 +4387,22 @@ function printSnapRoom(snapId, roomId, viewMode){
     const modalHtml=`
       <div class="modal modal-sm">
         <div class="mhd">
-          <span class="mhd-title">🖨 지난배치 학생용 인쇄</span>
-          <button class="btn btn-ghost" onclick="closeModal('print-mask-modal');_pendingSnapPrint=null">✕</button>
+          <span class="mhd-title"> 지난배치 학생용 인쇄</span>
+          <button class="btn btn-ghost" onclick="closeModal('print-mask-modal');_pendingSnapPrint=null"></button>
         </div>
         <div class="mbody">
           <div style="font-size:12px;color:var(--sl500);margin-bottom:8px">"${sn.name}" · ${room.name}</div>
           <div style="font-size:13px;font-weight:600;margin-bottom:16px;color:var(--sl700)">이름 마스킹 처리 여부를 선택하세요</div>
           <div style="display:flex;flex-direction:column;gap:10px">
             <button class="btn btn-pri" style="justify-content:flex-start;padding:12px 16px;font-size:13px" onclick="closeModal('print-mask-modal');_execSnapPrint(true)">
-              <span style="font-size:16px">🙈</span>
+              <span style="font-size:16px"></span>
               <div style="text-align:left">
                 <div>이름 마스킹 적용</div>
                 <div style="font-size:11px;font-weight:400;opacity:.75">예) 홍길동 → 홍○동 (시험장 공개용)</div>
               </div>
             </button>
             <button class="btn btn-sec" style="justify-content:flex-start;padding:12px 16px;font-size:13px" onclick="closeModal('print-mask-modal');_execSnapPrint(false)">
-              <span style="font-size:16px">👁</span>
+              <span style="font-size:16px"></span>
               <div style="text-align:left">
                 <div>이름 전체 표시</div>
                 <div style="font-size:11px;font-weight:400;opacity:.75">이름 그대로 인쇄 (내부 관리용)</div>
@@ -4486,7 +4501,7 @@ function _execSnapPrint(maskNames){
         return false;
       }).length}명</div>
     </div>
-    ${room.notice?`<div class="notice">📌 ${room.notice}</div>`:''}
+    ${room.notice?`<div class="notice"> ${room.notice}</div>`:''}
     <div class="board">칠 판</div>
     <div class="grid">${cardsHTML}</div>
     <scr`+`ipt>window.onload=function(){setTimeout(function(){window.focus();window.print();},300);};</scr`+`ipt>
@@ -4494,7 +4509,7 @@ function _execSnapPrint(maskNames){
   w.document.close();
   // 인쇄 창을 앞으로 (지난배치 조회 창 뒤에 숨어있지 않도록)
   try{w.focus();}catch(e){}
-  toast(`🖨 ${sn.name} - ${room.name} (${modeLabel}) 인쇄 창을 열었습니다`,'ok');
+  toast(` ${sn.name} - ${room.name} (${modeLabel}) 인쇄 창을 열었습니다`,'ok');
 }
 
 // 엑셀 다운로드: 배치표 시트 + 명단 시트 (선택한 강의실만)
@@ -4580,7 +4595,7 @@ function downloadSnapRoomExcel(snapId, roomId, viewMode){
   const modeLabel=isProctorView?'시감자용':'학생용';
   const fileName=`${sn.name.replace(/[\\/:*?"<>|]/g,'_')}_${room.name}_${modeLabel}_${today}.xlsx`;
   XLSX.writeFile(wb,fileName);
-  toast(`⬇ ${fileName} 다운로드됨`,'ok');
+  toast(` ${fileName} 다운로드됨`,'ok');
   writeLog('지난배치 엑셀 다운로드', `${sn.name}/${room.name}/${modeLabel}`);
 }
 
@@ -4615,7 +4630,7 @@ function downloadAllExcel(){
   const dt=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
   XLSX.writeFile(wb,`quetta_전체명단_${dt}.xlsx`);
   writeLog('전체 다운로드', `${S.students.length}명`);
-  toast(`✅ 전체 ${S.students.length}명 엑셀 다운로드 완료`,'ok');
+  toast(` 전체 ${S.students.length}명 엑셀 다운로드 완료`,'ok');
 }
 
 /* ═══ 응시현황표 출력(평가원) — 새 창으로 띄움 ═══ */
@@ -4760,7 +4775,7 @@ body { margin: 0; font-family: -apple-system, 'Malgun Gothic', 'Noto Sans KR', s
 <body>
 <div class="controls">
   <div class="controls-row">
-    <label>📋 모의고사
+    <label> 모의고사
       <select id="exam-select" style="width:180px;font-weight:700;color:#0891b2"></select>
     </label>
     <label>학년도 <input type="number" id="meta-year" min="2020" max="2099" style="width:80px"></label>
@@ -4768,14 +4783,14 @@ body { margin: 0; font-family: -apple-system, 'Malgun Gothic', 'Noto Sans KR', s
     <label>시·도 <input type="text" id="meta-sido" placeholder="예: 서울" style="width:80px"></label>
     <label>학교(학원)명 <input type="text" id="meta-school" placeholder="학원명" style="width:180px"></label>
     <label>학교(학원) 번호 <input type="text" id="meta-schoolno" placeholder="번호" style="width:110px"></label>
-    <button class="btn" id="save-btn" onclick="saveCurrentDataNow()" style="background:#15803d;color:#fff;align-self:flex-end">💾 저장</button>
+    <button class="btn" id="save-btn" onclick="saveCurrentDataNow()" style="background:#15803d;color:#fff;align-self:flex-end"> 저장</button>
     <span id="dirty-indicator" style="font-size:11px;font-weight:700;color:#dc2626;align-self:flex-end;padding:6px 0;display:none">● 미저장 변경 있음</span>
     <span id="save-status" style="font-size:11px;color:#15803d;opacity:0.5;transition:opacity .3s;align-self:flex-end;padding:6px 0"></span>
   </div>
   <div class="controls-row">
     <label>반 코드 <select id="ban-select" style="width:180px"></select></label>
-    <button class="btn btn-print" onclick="doPrint()">🖨 인쇄 (현재 반)</button>
-    <button class="btn btn-all" onclick="printAllBans()">🖨 전체 반 일괄 인쇄</button>
+    <button class="btn btn-print" onclick="doPrint()"> 인쇄 (현재 반)</button>
+    <button class="btn btn-all" onclick="printAllBans()"> 전체 반 일괄 인쇄</button>
     <button class="btn" onclick="resetCurrentExamData()" style="background:#7c2d12;color:#fff">↺ 이 모의고사 데이터 초기화</button>
     <span class="info" id="info-stat">반을 선택하세요</span>
   </div>
@@ -4822,11 +4837,11 @@ function updateSaveBtnState(){
     if(DIRTY){
       btn.style.background = '#dc2626';
       btn.style.color = '#fff';
-      btn.textContent = '💾 저장 (변경됨)';
+      btn.textContent = ' 저장 (변경됨)';
     } else {
       btn.style.background = '#15803d';
       btn.style.color = '#fff';
-      btn.textContent = '💾 저장';
+      btn.textContent = ' 저장';
     }
   }
   if(ind){
@@ -4873,11 +4888,11 @@ function saveCurrentDataNow(){
     ALL_EXAM_DATA[CURRENT_EXAM] = data;
     SAVE_EXAM_DATA(CURRENT_EXAM, data);
     clearDirty();
-    showSaveStatus('✓ 저장됨');
+    showSaveStatus(' 저장됨');
   } catch(e){
     console.warn('저장 실패:', e);
     const msg = e && e.message ? e.message : '알 수 없는 오류';
-    showSaveStatus('⚠ ' + msg, 'err');
+    showSaveStatus(' ' + msg, 'err');
     alert('저장 실패: ' + msg + '\\n\\n본 앱 페이지가 살아있는지 확인하고 다시 시도하세요.');
   }
 }
@@ -4944,7 +4959,7 @@ function toggle5(banCode, hak){
   if(CHECKED5[k]) delete CHECKED5[k]; else CHECKED5[k] = true;
   const el = document.querySelector('[data-toggle="' + k + '"]');
   if(el) el.textContent = CHECKED5[k] ? '' : 'X';
-  markDirty(); // 자동 저장 X — 사용자가 [💾 저장] 클릭해야 저장됨
+  markDirty(); // 자동 저장 X — 사용자가 [ 저장] 클릭해야 저장됨
 }
 function is5Blank(banCode, hak){ return !!CHECKED5[banCode + ':' + hak]; }
 
@@ -4962,7 +4977,7 @@ function render(){
   const info = document.getElementById('info-stat');
   pages.innerHTML = '';
   if(!CURRENT_EXAM){
-    info.textContent = '📋 모의고사를 먼저 선택하세요';
+    info.textContent = ' 모의고사를 먼저 선택하세요';
     info.style.background = '#fef3c7';
     info.style.color = '#92400e';
     return;
@@ -5221,7 +5236,7 @@ function openPrintMaskModal(mode, targetView){
   if(mask) mask.checked=true;
   openModal('print-mask-modal');
 }
-// 옵션 모달에서 [🖨 인쇄 시작] 클릭
+// 옵션 모달에서 [ 인쇄 시작] 클릭
 function _execPrintWithOpts(){
   const targetView=_pendingPrintView||S.view;
   const maskInput=document.querySelector('[name="pm-mask"]:checked');
@@ -5487,10 +5502,10 @@ function printAll(mode,maskNames=false,showInfoBar=false){
 /* ═══ RESET ═══ */
 function confirmReset(){
   if(!confirm('배정된 학생 데이터를 초기화합니다.\n강의실 배열은 유지됩니다.\n\n계속하시겠습니까?')) return;
-  const pw = prompt('⚠ 전체 초기화 비밀번호를 입력하세요:');
+  const pw = prompt(' 전체 초기화 비밀번호를 입력하세요:');
   if(pw === null) return;
   if(pw !== '6688'){ alert('비밀번호가 틀렸습니다.'); return; }
-  if(!confirm('⚠ 이 작업은 되돌릴 수 없습니다.\n정말 초기화하시겠습니까?')) return;
+  if(!confirm(' 이 작업은 되돌릴 수 없습니다.\n정말 초기화하시겠습니까?')) return;
   writeLog('전체 초기화', `학생 ${S.students.length}명 삭제`);
   S.students=[];S.swap=null;saveAll();renderAll();toast('학생 데이터 초기화 완료 (배열 유지)','ok');
 }
@@ -5533,7 +5548,7 @@ function doSearch(q){
     const dnLabel=cell?`${cell.dn}번`:(s.자리?`업로드${s.자리}번`:'좌석없음');
     const gBadge=s.성별==='남'?'<span class="bdg bdg-m" style="font-size:9px">남</span>':s.성별==='여'?'<span class="bdg bdg-f" style="font-size:9px">여</span>':'';
     const tBadge=s.탐구?`<span class="bdg ${s.탐구.includes('사탐')?'bdg-sat':s.탐구.includes('과탐')?'bdg-gwt':'bdg-sag'}" style="font-size:9px">${s.탐구}</span>`:'';
-    const unaBadge=isUnassigned?'<span style="background:#fef3c7;color:#92400e;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;border:1px solid #fde68a">📍 미배정</span>':'';
+    const unaBadge=isUnassigned?'<span style="background:#fef3c7;color:#92400e;font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;border:1px solid #fde68a"> 미배정</span>':'';
     const safeName=(s.이름||'').replace(/'/g,'');
     const safeHak=(s.학번||'').replace(/'/g,'');
     return`<div class="li-item" style="cursor:pointer${isUnassigned?';background:#fffbeb':''}" onclick="goToSeat('${s.고사장||''}',${s.자리||0},'${safeHak}','${safeName}',${isUnassigned});closeModal('search-modal')">
@@ -5576,9 +5591,9 @@ function goToSeat(roomId,seatN,hak,name,isUnassigned){
         found.style.outlineOffset='2px';
         found.style.boxShadow='0 0 0 6px rgba(245,158,11,.2)';
         setTimeout(()=>{found.style.outline='';found.style.outlineOffset='';found.style.boxShadow='';},3000);
-        toast(`📍 ${name||'학생'} — 미배정 상태입니다`,'');
+        toast(` ${name||'학생'} — 미배정 상태입니다`,'');
       } else {
-        toast(`📍 ${name||'학생'} — 미배정 상태 (이 강의실 패널에 표시 안 됨)`,'');
+        toast(` ${name||'학생'} — 미배정 상태 (이 강의실 패널에 표시 안 됨)`,'');
       }
       return;
     }
@@ -5605,7 +5620,7 @@ function ovClose(e,id){if(e.target===e.currentTarget)closeModal(id);}
 let _tt;
 function toast(msg,type=''){
   const el=document.getElementById('toast');
-  el.textContent=({ok:'✅ ',err:'❌ ','':'💬 '}[type]||'')+msg;
+  el.textContent=({ok:' ',err:' ','':' '}[type]||'')+msg;
   el.className=`toast on ${type}`;clearTimeout(_tt);_tt=setTimeout(()=>el.classList.remove('on'),2800);
 }
 
