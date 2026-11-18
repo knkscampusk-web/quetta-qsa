@@ -394,15 +394,25 @@ input,select,textarea{font-family:inherit;cursor:auto}
   .egrid-wrap{ padding:16px 20px 20px !important; }
   .ec{ width:72px !important; height:72px !important; border-radius:12px !important; border-width:1px !important; gap:2px; }
   .ec.void{ width:14px !important; min-height:72px !important; }
-  .ec.active{ background:#ECFAFB !important; border-color:#9FDDE2 !important; }
-  .ec.active:hover{ background:#D3F3F5 !important; }
-  .ec.blocked{ background:#FBF3EA !important; border-color:#EBCB9F !important; }
+  /* 상태 구분을 분명하게: 활성=흰 칸+Teal 테두리, 미사용=Periwinkle 점선, 없음=흐린 점선 */
+  .ec.active{ background:#fff !important; border:2px solid #00B2BE !important; box-shadow:0 1px 2px rgba(35,31,32,.06); }
+  .ec.active:hover{ background:#ECFAFB !important; }
+  .ec.blocked{ background:#EFF1FA !important; border:2px dashed #7E8CC6 !important; }
+  .ec.blocked:hover{ background:#E2E6F5 !important; }
+  .ec.void{ border:1px dashed rgba(35,31,32,.18) !important; background:transparent !important; }
   .ec-dn{ font-size:18px !important; font-weight:800 !important; color:#115E66 !important; }
-  .ec.blocked .ec-dn{ color:#B26B1F !important; }
+  .ec.blocked .ec-dn{ color:#434E89 !important; }
   .ec-n{ font-size:11px !important; color:rgba(17,94,102,.55) !important; }
   .edit-ctrl{ background:transparent !important; font-size:13px !important; }
   .edit-legend{ font-size:13px !important; }
   .edit-hint{ font-size:13px !important; }
+  /* 범례 상자도 같은 색으로 */
+  .el-active{ background:#fff !important; border:2px solid #00B2BE !important; color:#115E66 !important; }
+  .el-blocked{ background:#EFF1FA !important; border:2px dashed #7E8CC6 !important; color:#434E89 !important; }
+
+  /* 관리자 버튼: 원본이 어두운 바탕용 흰 글자로 직접 칠해 둔 것을 덮어씀 (켜짐 = Teal) */
+  #admin-toggle-btn{ background:#fff !important; color:#115E66 !important; border:1px solid rgba(35,31,32,.14) !important; font-weight:700 !important; }
+  #admin-toggle-btn[style*="--teal"]{ background:#00B2BE !important; color:#fff !important; border-color:transparent !important; }
 }
 #logout-btn, button[onclick="renderUserList()"]{ display:none !important; }   /* 로그아웃·접속자 관리는 QSA 가 담당 */
 #user-info{ display:none !important; }
@@ -3006,7 +3016,7 @@ function renderEdit(room){
         </div>
       </div>
       <div class="edit-hint">
-        클릭 순환: <b>활성</b>(청록) → <b>미사용</b>(주황) → <b>없음</b>(회색) → 활성<br>
+        클릭 순환: <b>활성</b>(흰 칸) → <b>미사용</b>(점선) → <b>없음</b>(회색) → 활성<br>
         큰숫자 = 화면 표시 번호(가로순) / <small>작은숫자 = 업로드 번호(세로순, 활성만)</small><br>
          이 배열은 학생 초기화와 무관하게 유지됩니다.
       </div>
