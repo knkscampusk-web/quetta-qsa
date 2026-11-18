@@ -79,7 +79,8 @@ service cloud.firestore {
     match /qsa_meta/{docId} {
       allow read, write: if isAdmin()
         || (docId == 'enroll_import' && canUse('enroll'))
-        || (docId == 'cert_import' && canUse('cert'));
+        || (docId == 'cert_import' && canUse('cert'))
+        || (docId == 'seat_import' && canUse('seating'));
     }
 
     // ── 등록현황 (메뉴 ID: enroll) ──
@@ -128,6 +129,18 @@ service cloud.firestore {
     }
     match /certConfig/{docId} {
       allow read, write: if canUse('cert');
+    }
+
+    // ── 좌석 배정 (메뉴 ID: seating) ──
+    match /seat_state/{docId} {
+      allow read, write: if canUse('seating');
+    }
+    match /seat_snapshots/{docId} {
+      allow read, write: if canUse('seating');
+    }
+    match /seat_logs/{docId} {
+      allow read, create: if canUse('seating');
+      allow update, delete: if isAdmin();
     }
 
     // ── 다음 메뉴를 이식하면 같은 방식으로 추가합니다 ──
