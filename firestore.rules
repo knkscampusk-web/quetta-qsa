@@ -80,7 +80,8 @@ service cloud.firestore {
       allow read, write: if isAdmin()
         || (docId == 'enroll_import' && canUse('enroll'))
         || (docId == 'cert_import' && canUse('cert'))
-        || (docId == 'seat_import' && canUse('seating'));
+        || (docId == 'seat_import' && canUse('seating'))
+        || (docId == 'schol_import' && canUse('scholarship'));
     }
 
     // ── 등록현황 (메뉴 ID: enroll) ──
@@ -141,6 +142,14 @@ service cloud.firestore {
     match /seat_logs/{docId} {
       allow read, create: if canUse('seating');
       allow update, delete: if isAdmin();
+    }
+
+    // ── 장학 관리 (메뉴 ID: scholarship) — 학생 성적 포함 ──
+    match /schol_data/{docId} {
+      allow read, write: if canUse('scholarship');
+    }
+    match /schol_settings/{docId} {
+      allow read, write: if canUse('scholarship');
     }
 
     // ── 다음 메뉴를 이식하면 같은 방식으로 추가합니다 ──
