@@ -19,6 +19,15 @@ export const firebaseConfig = {
 // 연결하는 기존 프로젝트들 (웹 설정값만. 비밀 키는 넣지 않음)
 //  · enroll: 등록현황 원본(quetta-2ea94). 지금은 "데이터 가져오기"에서 읽기 전용으로만 사용
 export const linkedProjects = {
+  //  · scholarship: 장학 관리 원본(grades-of-test). "장학 관리 데이터 가져오기"에서 읽기 전용으로만 사용
+  scholarship: {
+    apiKey: "AIzaSyBQ3V-4EYiIKShPmfuNwhPMz-WiiTzi6CM",
+    authDomain: "grades-of-test.firebaseapp.com",
+    projectId: "grades-of-test",
+    storageBucket: "grades-of-test.firebasestorage.app",
+    messagingSenderId: "607351091085",
+    appId: "1:607351091085:web:19b3b42ee58bb0045f57c4",
+  },
   //  · seating: 좌석 배정 원본(quetta-seating). "좌석 배정 데이터 가져오기"에서 읽기 전용으로만 사용
   seating: {
     apiKey: "AIzaSyCbHwOifJ_ajPyxr66uTUpqugDl5GW8tOY",
@@ -65,7 +74,8 @@ export const menu = [
   { group: "수업운영" },
   { id: "seating",     label: "좌석 배정", icon: "armchair",           ready: true, loader: () => import("../modules/seat.js") },
   { id: "seat-import", label: "좌석 배정 데이터 가져오기", icon: "download-cloud", ready: true, hidden: true, adminOnly: true, loader: () => import("../modules/seat-import.js") },
-  { id: "scholarship", label: "장학 관리", icon: "award",              ready: false },
+  { id: "scholarship", label: "장학 관리", icon: "award",              ready: true, loader: () => import("../modules/scholarship.js") },
+  { id: "schol-import", label: "장학 관리 데이터 가져오기", icon: "download-cloud", ready: true, hidden: true, adminOnly: true, loader: () => import("../modules/schol-import.js") },
   { id: "textbook",    label: "교재 입고", icon: "package-check",      ready: false },
   { id: "lecture",     label: "특강 관리", icon: "presentation",       ready: false },
   { group: "유틸리티" },
