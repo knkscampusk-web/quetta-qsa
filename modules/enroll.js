@@ -4,6 +4,7 @@
 //    안쪽 카드·버튼·표·탭을 QSA 부품 모양으로 덮어씁니다.
 import {
   doc, getDoc, setDoc, getDocs, collection, writeBatch,
+  query, orderBy, startAt, endAt, documentId,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { CSS, MARKUP, start } from "./enroll/legacy.js";
 
@@ -136,7 +137,7 @@ export async function mount(el, ctx) {
 
   const api = await start(root, {
     db: ctx.db,
-    fs: { doc, getDoc, setDoc, getDocs, collection, writeBatch },
+    fs: { doc, getDoc, setDoc, getDocs, collection, writeBatch, query, orderBy, startAt, endAt, documentId },
     gotoImport: () => { location.hash = "#enroll-import"; },
   });
 
