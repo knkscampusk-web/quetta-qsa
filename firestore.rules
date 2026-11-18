@@ -152,6 +152,15 @@ service cloud.firestore {
       allow read, write: if canUse('scholarship');
     }
 
+    // ── 반배정 (메뉴 ID: class-assign) — 학생 성적 포함 ──
+    match /classa_state/{docId} {
+      allow read, write: if canUse('class-assign');
+    }
+    match /classa_log/{docId} {
+      allow read, create: if canUse('class-assign');
+      allow update, delete: if isAdmin();
+    }
+
     // ── 다음 메뉴를 이식하면 같은 방식으로 추가합니다 ──
     // match /컬렉션/{docId} { allow read, write: if canUse('메뉴ID'); }
 
