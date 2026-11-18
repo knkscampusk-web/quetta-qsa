@@ -19,6 +19,15 @@ export const firebaseConfig = {
 // 연결하는 기존 프로젝트들 (웹 설정값만. 비밀 키는 넣지 않음)
 //  · enroll: 등록현황 원본(quetta-2ea94). 지금은 "데이터 가져오기"에서 읽기 전용으로만 사용
 export const linkedProjects = {
+  //  · seating: 좌석 배정 원본(quetta-seating). "좌석 배정 데이터 가져오기"에서 읽기 전용으로만 사용
+  seating: {
+    apiKey: "AIzaSyCbHwOifJ_ajPyxr66uTUpqugDl5GW8tOY",
+    authDomain: "quetta-seating.firebaseapp.com",
+    projectId: "quetta-seating",
+    storageBucket: "quetta-seating.firebasestorage.app",
+    messagingSenderId: "804478055238",
+    appId: "1:804478055238:web:1513972a9df85405f7ab47",
+  },
   //  · forest: 노동숲(workers-forest). 홈의 "이번 주 교무 일정"에서 읽기 전용으로만 사용
   forest: {
     apiKey: "AIzaSyCO8sBUNHVxUWcxATzF-aH1jw2T58soMHQ",
@@ -54,7 +63,8 @@ export const menu = [
   { id: "class-assign", label: "반배정",    icon: "shuffle",         ready: false },
   { id: "transfer",    label: "전입신고",  icon: "home",               ready: false },
   { group: "수업운영" },
-  { id: "seating",     label: "좌석 배정", icon: "armchair",           ready: false },
+  { id: "seating",     label: "좌석 배정", icon: "armchair",           ready: true, loader: () => import("../modules/seat.js") },
+  { id: "seat-import", label: "좌석 배정 데이터 가져오기", icon: "download-cloud", ready: true, hidden: true, adminOnly: true, loader: () => import("../modules/seat-import.js") },
   { id: "scholarship", label: "장학 관리", icon: "award",              ready: false },
   { id: "textbook",    label: "교재 입고", icon: "package-check",      ready: false },
   { id: "lecture",     label: "특강 관리", icon: "presentation",       ready: false },
