@@ -61,7 +61,12 @@ export async function mount(el, ctx) {
       <div class="card-head"><h2>원본의 승인 사용자</h2></div>
       <div class="card-body">
         <p class="muted" style="margin-bottom:var(--s3)"></p>
-        <div class="table-wrap"><table class="table"><thead><tr><th>소속</th><th>이름</th><th class="left">이메일</th></tr></thead><tbody></tbody></table></div>
+        <div class="toolbar" style="margin-bottom:var(--s3)">
+          <label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" data-all> 등록 가능한 사람 전체 선택</label>
+          <button class="btn" type="button" data-register>선택한 사람 등록 (좌석 배정 권한)</button>
+          <span class="muted" data-reg-msg style="font-size:13px"></span>
+        </div>
+        <div class="table-wrap"><table class="table"><thead><tr><th style="width:44px">선택</th><th>소속</th><th>이름</th><th class="left">이메일</th><th>QSA 계정</th></tr></thead><tbody></tbody></table></div>
       </div>
     </section>
 
@@ -78,6 +83,85 @@ export async function mount(el, ctx) {
     p.textContent = msg;
     p.style.color = isErr ? "var(--danger)" : "";
   };
+
+  // ── 원본 승인 사용자 → QSA 계정 한 번에 등록 ──
+  let approvedUsers = [];
+  let qsaAccounts = new Map();
+  const usersBox = () => el.querySelector("[data-users]");
+  const regMsg = (t, err = false) => { const m = el.querySelector("[data-reg-msg]"); m.textContent = t; m.style.color = err ? "var(--danger)" : ""; };
+
+  function statusOf(email) {
+    if (email === ctx.profile.email) return { label: "본인", can: false };
+    const a = qsaAccounts.get(email);
+    if (!a) return { label: "없음 → 새로 등록", can: true, mode: "new" };
+    if (a.role === "admin") return { label: "관리자(이미 전체 권한)", can: false };
+    if ((a.menus || []).includes("seating")) return { label: "등록됨(좌석 권한 있음)", can: false };
+    return { label: "있음 → 좌석 권한 추가", can: true, mode: "add" };
+  }
+
+  async function renderUsers() {
+    const snap = await getDocs(collection(db, "qsa_admins"));
+    qsaAccounts = new Map(snap.docs.map((d) => [d.id, d.data()]));
+    const box = usersBox();
+    box.hidden = false;
+    const list = approvedUsers.slice().sort((x, y) => (x.affiliation || "").localeCompare(y.affiliation || "", "ko") || (x.realname || x.name || "").localeCompare(y.realname || y.name || "", "ko"));
+    const canCount = list.filter((u) => statusOf(u.email.toLowerCase()).can).length;
+    box.querySelector("p").textContent = `원본 승인 사용자 ${list.length}명 · 등록 가능 ${canCount}명. 이번 시즌에 실제로 좌석을 편집할 사람만 골라 등록하세요.`;
+    const tb = box.querySelector("tbody");
+    tb.replaceChildren();
+    for (const u of list) {
+      const email = u.email.toLowerCase();
+      const st = statusOf(email);
+      const tr = document.createElement("tr");
+      tr.innerHTML = "<td><input type='checkbox'></td><td></td><td></td><td class='left'></td><td><span class='badge'></span></td>";
+      const cb = tr.querySelector("input");
+      cb.disabled = !st.can;
+      cb.dataset.email = email;
+      cb.dataset.name = (u.realname || u.name || email.split("@")[0]).slice(0, 50);
+      cb.dataset.dept = (u.affiliation || "시감").slice(0, 30);
+      cb.dataset.mode = st.mode || "";
+      tr.children[1].textContent = u.affiliation || "-";
+      tr.children[2].textContent = u.realname || u.name || "-";
+      tr.children[3].textContent = email;
+      const b = tr.querySelector(".badge");
+      b.textContent = st.label;
+      if (st.mode === "new") b.classList.add("next");
+      if (!st.can) b.classList.add("done");
+      tb.append(tr);
+    }
+  }
+
+  el.addEventListener("change", (ev) => {
+    if (!ev.target.matches("[data-all]")) return;
+    el.querySelectorAll("[data-users] tbody input:not(:disabled)").forEach((c) => { c.checked = ev.target.checked; });
+  });
+
+  el.addEventListener("click", async (ev) => {
+    if (!ev.target.closest("[data-register]")) return;
+    const picked = [...el.querySelectorAll("[data-users] tbody input:checked")];
+    if (!picked.length) return regMsg("등록할 사람을 체크해 주세요.", true);
+    const nNew = picked.filter((c) => c.dataset.mode === "new").length;
+    const nAdd = picked.length - nNew;
+    if (!confirm(`${picked.length}명을 처리합니다.\n· 새 계정(일반, 좌석 배정만): ${nNew}명\n· 기존 계정에 좌석 배정 권한 추가: ${nAdd}명\n진행할까요?`)) return;
+    const btn = ev.target.closest("[data-register]");
+    btn.disabled = true;
+    let ok = 0; const fail = [];
+    for (const c of picked) {
+      const email = c.dataset.email;
+      try {
+        const cur = qsaAccounts.get(email);
+        const data = cur
+          ? { name: cur.name || c.dataset.name, dept: cur.dept || c.dataset.dept, role: cur.role === "admin" ? "admin" : "member",
+              menus: [...new Set([...(cur.menus || []), "seating"])] }
+          : { name: c.dataset.name, dept: c.dataset.dept, role: "member", menus: ["seating"] };
+        await setDoc(doc(db, "qsa_admins", email), { ...data, updatedAt: serverTimestamp(), updatedBy: ctx.profile.email });
+        ok++;
+      } catch (e) { fail.push(`${email}(${e.code || e.message})`); }
+    }
+    btn.disabled = false;
+    regMsg(fail.length ? `${ok}명 완료, 실패 ${fail.length}명: ${fail.join(", ")}` : `${ok}명 처리했습니다. 새 계정은 좌석 배정만, 기존 계정은 원래 메뉴에 좌석 배정이 더해집니다.`, fail.length > 0);
+    await renderUsers();
+  });
 
   function renderRows(qsaCounts = {}, states = {}) {
     const tb = $("[data-rows]");
@@ -137,19 +221,8 @@ export async function mount(el, ctx) {
       }
       try {
         const us = await getDocs(collection(srcDb, "quetta_users"));
-        const approved = us.docs.map((d) => d.data()).filter((u) => u.approved);
-        const box = el.querySelector("[data-users]");
-        box.hidden = false;
-        box.querySelector("p").textContent = `원본에서 승인된 사용자 ${approved.length}명 — QSA '설정 › 계정 관리'에서 '좌석 배정'을 체크해 등록하세요.`;
-        const tb = box.querySelector("tbody"); tb.replaceChildren();
-        approved.sort((a, b) => (a.affiliation || "").localeCompare(b.affiliation || "", "ko")).forEach((u) => {
-          const tr = document.createElement("tr");
-          tr.innerHTML = "<td></td><td></td><td class='left'></td>";
-          tr.children[0].textContent = u.affiliation || "-";
-          tr.children[1].textContent = u.realname || u.name || "-";
-          tr.children[2].textContent = (u.email || "").toLowerCase();
-          tb.append(tr);
-        });
+        approvedUsers = us.docs.map((d) => d.data()).filter((u) => u.approved && u.email);
+        await renderUsers();
       } catch (e) { console.warn("[승인 사용자 목록]", e.code || e.message); }
       backedUp = false;
       renderRows(await qsaCounts().catch(() => ({})));
