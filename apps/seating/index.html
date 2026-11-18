@@ -308,11 +308,32 @@ button,input,select,textarea{ font-family:inherit !important; }
 #hdr .logo-badge{ background:#00B2BE !important; }
 #tabs{ background:rgba(255,255,255,.55) !important; -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
   border-bottom:1px solid rgba(35,31,32,.09) !important; top:52px !important; }
-#tabs .tab{ color:#7A7476 !important; }
-#tabs .tab:hover{ color:#231F20 !important; }
-#tabs .tab.on, #tabs .tab.active{ color:#115E66 !important; border-bottom-color:#00B2BE !important; }
+#tabs .tab.on, #tabs .tab.active{ border-bottom-color:#00B2BE !important; }
 #logout-btn, button[onclick="renderUserList()"]{ display:none !important; }   /* 로그아웃·접속자 관리는 QSA 가 담당 */
-#user-info{ color:#4A4546 !important; }
+#user-info{ color:#4A4546 !important; font-weight:600; }
+/* 밝은 배경에서 잘 보이게: 원본이 어두운 상단 바 기준으로 만든 글자·버튼 색을 진하게 */
+.btn-hdr{ background:#fff !important; color:#115E66 !important; border:1px solid rgba(35,31,32,.14) !important; opacity:1 !important; font-weight:700 !important; }
+.btn-hdr:hover{ background:#ECFAFB !important; }
+/* 맨 위 상단 바는 숨기고(QSA 제목과 겹침), 학생 검색·지난배치·관리자 메뉴는 아래 도구 줄로 옮김 */
+#hdr{ display:none !important; }
+#tabs{ top:0 !important; border-radius:16px 16px 0 0; }
+#bar{ top:44px !important; }
+.qsa-tools{ display:flex; gap:6px; align-items:center; margin-left:8px; padding-left:10px; border-left:1px solid rgba(35,31,32,.12); }
+/* 글자 크기: 화면에서만 전체 1.2배 (인쇄 크기는 원본 그대로) */
+@media screen { body{ zoom:1.2; } }
+#sync-stat{ color:#0497A2 !important; opacity:1 !important; }
+#tabs .tab{ color:#4A4546 !important; font-weight:600 !important; }
+#tabs .tab:hover{ color:#231F20 !important; }
+#tabs .tab.on{ color:#115E66 !important; font-weight:800 !important; }
+.tab-n{ background:rgba(35,31,32,.08) !important; color:#4A4546 !important; }
+.tab.on .tab-n{ background:#00B2BE !important; color:#fff !important; }
+#bar{ background:rgba(255,255,255,.9) !important; }
+.vbtn{ color:#4A4546 !important; }
+.vbtn.on{ color:#115E66 !important; }
+.edit-mode-btn{ color:#4A4546 !important; }
+#bar-stat{ color:#4A4546 !important; }
+#main{ background:rgba(255,255,255,.35); border-radius:0 0 16px 16px; }
+.card{ background:rgba(255,255,255,.92) !important; }
 </style>
 </head>
 <body>
@@ -5542,6 +5563,22 @@ document.addEventListener('keydown',e=>{
 
 /* ═══ INIT ═══ */
 // auth.onAuthStateChanged에서 승인 확인 후 load() 호출됨
+</script>
+
+<script>
+/* QSA: 상단 바의 도구 버튼(학생 검색·지난배치·관리자 메뉴·저장 상태)을 아래 도구 줄 끝으로 옮김 */
+document.addEventListener('DOMContentLoaded', function () {
+  var bar = document.getElementById('bar');
+  var right = document.querySelector('#hdr .hdr-right');
+  if (!bar || !right) return;
+  var wrap = document.createElement('div');
+  wrap.className = 'qsa-tools';
+  Array.prototype.slice.call(right.children).forEach(function (c) {
+    if (c.id === 'logout-btn' || c.id === 'user-info') return;
+    wrap.appendChild(c);
+  });
+  bar.appendChild(wrap);
+});
 </script>
 </body>
 </html>
