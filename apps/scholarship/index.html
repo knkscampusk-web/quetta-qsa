@@ -172,19 +172,19 @@ input[type=checkbox]{cursor:pointer;accent-color:var(--gold);width:13px;height:1
   button,input,select,textarea{ font-family:inherit !important; }
   ::-webkit-scrollbar{ width:8px; height:8px } ::-webkit-scrollbar-thumb{ background:rgba(35,31,32,.18); border-radius:8px }
 
-  /* 원본 왼쪽 사이드바 → 위쪽 QSA 유리 탭 바 (QSA 사이드바와 겹치지 않게) */
+  /* 원본 왼쪽 사이드바 → 위쪽 어두운 탭 바 (다른 QSA 화면의 '조건검색' 머리와 같은 Ink 톤) */
   .app{ flex-direction:column !important; min-height:0 !important; }
   .sb{ width:auto !important; min-width:0 !important; height:auto !important; position:sticky !important; top:0; z-index:20;
-    flex-direction:row !important; align-items:center; gap:8px; padding:6px 10px !important; margin:0 0 14px;
-    background:var(--q-glass) !important; -webkit-backdrop-filter:blur(14px) saturate(140%); backdrop-filter:blur(14px) saturate(140%);
-    border:1px solid var(--q-line) !important; border-radius:16px; box-shadow:var(--q-shadow); overflow:visible !important; }
+    flex-direction:row !important; align-items:center; gap:4px; padding:6px !important; margin:0 0 14px;
+    background:rgba(35,31,32,.86) !important; border:0 !important; border-radius:16px; box-shadow:var(--q-shadow); overflow:visible !important; }
   .brand, .nsec, .user-info, .logout-btn{ display:none !important; }
-  .sb nav{ display:flex !important; flex-wrap:wrap; gap:4px; padding:0 !important; flex:1; }
-  .ni{ font-size:14px !important; padding:9px 14px !important; border-radius:10px !important; color:#4A4546 !important; font-weight:600; }
-  .ni:hover{ background:rgba(255,255,255,.7) !important; color:#231F20 !important; }
-  .ni.on{ background:#fff !important; color:#115E66 !important; font-weight:800 !important; box-shadow:0 1px 3px rgba(35,31,32,.1); }
-  .sb-bottom{ border:0 !important; padding:0 4px !important; margin-left:auto; display:flex; align-items:center; gap:8px; }
-  .sync-msg{ font-size:12px !important; color:#0497A2 !important; }
+  .sb nav{ display:flex !important; flex-wrap:wrap; gap:2px; padding:0 !important; flex:0 1 auto !important; }
+  .ni{ font-size:14px !important; padding:8px 14px !important; border-radius:10px !important; color:rgba(255,255,255,.78) !important; font-weight:600; background:transparent !important; }
+  .ni:hover{ background:rgba(255,255,255,.10) !important; color:#fff !important; }
+  .ni.on{ background:#00B2BE !important; color:#fff !important; font-weight:800 !important; box-shadow:none !important; }
+  .sb-bottom{ border:0 !important; padding:0 8px !important; margin:0 0 0 auto !important; display:flex; align-items:center; gap:8px; }
+  .sb-bottom:empty{ display:none !important; }
+  .sync-msg{ font-size:12px !important; color:#7FE3EA !important; }
   #main{ padding:0 !important; }
 
   /* 머리말·카드·지표 */
@@ -218,7 +218,7 @@ input[type=checkbox]{cursor:pointer;accent-color:var(--gold);width:13px;height:1
   table td{ font-size:13px; }
   .notice{ background:#EFF1FA !important; color:#434E89 !important; border:0 !important; border-radius:12px !important; }
   .loading-spinner{ border-top-color:#00B2BE !important; }
-  #login-screen{ min-height:60vh !important; }
+  #login-screen{ min-height:60vh !important; display:none; }   /* 권한 확인이 끝나기 전 깜빡임 방지 (거부 안내 때만 보임) */
   .login-box{ background:var(--q-glass) !important; border:1px solid var(--q-line) !important; border-radius:16px !important; box-shadow:var(--q-shadow); }
   .login-box h1{ color:#231F20 !important; }
 }
@@ -226,13 +226,8 @@ input[type=checkbox]{cursor:pointer;accent-color:var(--gold);width:13px;height:1
 </head>
 <body>
 <div id="login-screen">
-  <div class="login-box">
-    <h1>QUETTA</h1>
-    <p>장학 관리 시스템</p>
-    <input type="password" id="li-pw" placeholder="비밀번호" onkeydown="if(event.key==='Enter')doLogin()">
-    <button onclick="doLogin()">로그인</button>
-    <div class="login-err" id="li-err"></div>
-  </div>
+  <div class="login-box"><h1>장학 관리</h1><p>권한 확인 중</p></div>
+</div>
 </div>
 <div class="app" id="app-screen" style="display:none">
   <aside class="sb" id="sb"></aside>
