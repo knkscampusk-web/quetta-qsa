@@ -10,12 +10,13 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import * as E from "./class-assign/engine.js";
 
-const STATE = ["classa_state", "current"];
+const SEASONS = [["zero", "시즌제로"], ["regular", "정규시즌"]];   // 시즌·연도마다 명단과 배정 기준을 따로 저장
+const stateRef = (db, key) => doc(db, "classa_state", key);
 const XLSX_URL = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
 const COL_HINTS = {   // 원본과 같은 열 이름 단서
   sid: ["수험번호"], inq1: ["탐구1"], inq2: ["탐구2"], name: ["성명", "이름"], exam: ["구분"],
   mathtype: ["수학(선택)"], math: ["백분위수학", "백분위 수학"], kortype: ["국어(선택)"], korean: ["백분위국어", "백분위 국어"],
-  eng: ["등급영", "등급 영"], mathtype_new: ["수학선택"], kortype_new: ["국어선택"], nonsul: ["논술"], hankuksa: ["한국사"], jeonhyeong: ["전형방법", "전형"],
+  eng: ["등급영", "등급 영"], gender: ["성별"], mathtype_new: ["수학선택"], kortype_new: ["국어선택"], nonsul: ["논술"], hankuksa: ["한국사"], jeonhyeong: ["전형방법", "전형"],
 };
 const esc = (v) => String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -30,13 +31,30 @@ const num = (v) => (v === "" || v == null || isNaN(Number(v)) ? null : Number(v)
 
 export async function mount(el, ctx) {
   const { db, profile } = ctx;
-  let st = { students: [], base: {}, startSid: "" };
+  let st = { students: [], base: {}, startSid: "", config: null, rules: null };
+  const thisYear = new Date().getFullYear();
+  let seasonKey = `${thisYear}_regular`;
+  let view = "main";
   let dirty = false, saveTimer = null, loadedAt = null;
   let filter = { cls: "", q: "", only: "" };
 
   el.innerHTML = `
     <section class="card">
-      <div class="card-head dark"><h2>정원 현황</h2><span class="muted" data-save style="color:rgba(255,255,255,.75)"></span></div>
+      <div class="card-head dark"><h2>시즌</h2><span class="muted" data-save style="color:rgba(255,255,255,.75)"></span></div>
+      <div class="card-body">
+        <div class="filters">
+          <select class="select" data-season-year aria-label="연도">${[thisYear - 1, thisYear, thisYear + 1].map((y) => `<option ${y === thisYear ? "selected" : ""}>${y}</option>`).join("")}</select>
+          <select class="select" data-season-kind aria-label="시즌">${SEASONS.map(([k, l]) => `<option value="${k}" ${k === "regular" ? "selected" : ""}>${l}</option>`).join("")}</select>
+          <button class="btn btn-line" type="button" data-act="rules">배정 기준 설정</button>
+          <span class="ca-note" data-rules-note></span>
+        </div>
+      </div>
+    </section>
+
+    <div data-view-rules hidden></div>
+    <div data-view-main>
+    <section class="card">
+      <div class="card-head"><h2>반별 인원</h2></div>
       <div class="card-body" data-cap></div>
     </section>
 
@@ -70,24 +88,34 @@ export async function mount(el, ctx) {
         </div>
         <div class="table-wrap" style="max-height:62vh;overflow:auto">
           <table class="table ca-table">
-            <thead><tr><th>고정</th><th class="left">이름</th><th>전형</th><th>수학 변환</th><th>점수상 반</th><th>수학반</th><th>생활반</th><th>영어</th><th>탐구</th><th class="left">메모·경고</th></tr></thead>
+            <thead><tr><th>고정</th><th class="left">이름</th><th>전형</th><th>수학 변환</th><th>점수상 반</th><th>수학반</th><th>생활반</th><th class="left">과목반 (국어·수학·영어)</th><th>탐구</th><th class="left">메모·경고</th></tr></thead>
             <tbody data-rows></tbody>
           </table>
         </div>
       </div>
     </section>
 
+    </div>
     <style>
       .ca-drops{ display:grid; grid-template-columns:1fr 1fr; gap:var(--s3); }
       .ca-drop{ border:1.5px dashed rgba(0,178,190,.45); border-radius:var(--r-md); padding:var(--s4); background:rgba(255,255,255,.45); display:flex; flex-direction:column; gap:4px; font-size:13px; color:var(--ink-2); }
       .ca-drop b{ color:var(--ink); font-size:14px; } .ca-drop em{ font-style:normal; color:var(--teal-strong); font-weight:600; }
       .ca-drop.is-drag{ background:var(--teal-soft); border-color:var(--teal); }
       .ca-table td{ white-space:nowrap; } .ca-table td.left{ white-space:normal; min-width:160px; }
+      .ca-table td.left:nth-child(8){ min-width:240px; }
       .ca-table select{ height:30px; font-size:13px; padding:0 22px 0 8px; border-radius:8px; }
       .ca-warn{ color:var(--danger); font-size:12px; } .ca-note{ color:var(--ink-3); font-size:12px; }
       .ca-sug{ display:inline-flex; gap:4px; flex-wrap:wrap; margin-top:4px; }
-      .ca-cap td.over{ color:var(--danger); font-weight:800; } .ca-cap td.full{ color:var(--teal-strong); font-weight:700; }
-      .ca-cap .ks{ font-size:11px; color:var(--ink-3); }
+      .ca-cap th, .ca-cap td{ padding:6px 8px !important; text-align:center; font-size:13px; }
+      .ca-cap th.t{ font-weight:600; font-size:12px; line-height:1.35; }
+      .ca-cap td.off{ background:rgba(35,31,32,.06); }
+      .ca-cap td.hr{ font-weight:800; color:var(--ink); }
+      .ca-cap td.tot{ font-weight:800; color:#434E89; } .ca-cap td.tot .cap{ font-weight:500; font-size:11px; color:var(--ink-3); }
+      .ca-cap td.over{ color:var(--danger) !important; font-weight:800; }
+      .ca-cap tr.sum td{ background:rgba(236,250,251,.9); font-weight:800; }
+      .ca-cap tr.wait td{ color:var(--ink-2); }
+      .ca-cap .ca-in{ height:28px; padding:0 6px; font-size:12px; text-align:center; }
+
       @media (max-width:900px){ .ca-drops{ grid-template-columns:1fr; } }
     </style>`;
 
@@ -97,14 +125,14 @@ export async function mount(el, ctx) {
   // ── 저장 ──
   async function save() {
     try {
-      const cur = await getDoc(doc(db, ...STATE));
+      const cur = await getDoc(stateRef(db, seasonKey));
       const remote = cur.exists() ? cur.data() : null;
       if (remote && loadedAt && remote.updatedAt?.toMillis?.() > loadedAt && remote.updatedBy !== profile.email) {
         if (!confirm(`${remote.updatedBy} 님이 그사이 반배정을 수정했습니다. 지금 화면 내용으로 덮어쓸까요?\n(취소하면 새로고침해서 최신 내용을 보세요)`)) return;
       }
       const clean = st.students.map(({ classes, ...rest }) => rest);
-      await setDoc(doc(db, ...STATE), { students: clean, base: st.base || {}, startSid: st.startSid || "", updatedAt: serverTimestamp(), updatedBy: profile.email });
-      const d = await getDoc(doc(db, ...STATE)); loadedAt = d.data().updatedAt?.toMillis?.() || Date.now();
+      await setDoc(stateRef(db, seasonKey), { students: clean, base: st.base || {}, startSid: st.startSid || "", config: st.config || null, rules: st.rules || null, updatedAt: serverTimestamp(), updatedBy: profile.email });
+      const d = await getDoc(stateRef(db, seasonKey)); loadedAt = d.data().updatedAt?.toMillis?.() || Date.now();
       dirty = false;
       $("[data-save]").textContent = `저장됨 ${new Date().toLocaleTimeString("ko-KR")}`;
     } catch (e) {
@@ -115,35 +143,105 @@ export async function mount(el, ctx) {
   const touch = () => { dirty = true; $("[data-save]").textContent = "저장 중…"; clearTimeout(saveTimer); saveTimer = setTimeout(save, 1200); };
   const log = (s, from, to, what) => addDoc(collection(db, "classa_log"), { at: serverTimestamp(), by: profile.email, sid: s.sid || "", name: s.name || "", what, from: from || "", to: to || "" }).catch(() => {});
 
-  // ── 정원 현황 ──
+  // ── 반 설정 (반코드·담임·강의실) — 해마다 바뀌는 값이라 화면에서 고침 ──
+  const DEFAULT_CFG = {
+    code: { A: "71", X: "72", I: "73", O: "74", M: "75", K: "76", N: "77", D: "78", S: "79" },
+    mathT: { A: "유명환", X: "최병규", I: "임준홍", O: "안경수", M: "박유림", K: "김상훈", N: "조병화", D: "박병조", S: "김종우" },
+    room: { A: "L01호", X: "101호", I: "102호", O: "201호", M: "202호", K: "203호", N: "204호", D: "301호", S: "302호" },
+    // 생활반 담임: 묶음별 조 순서대로 (X·I, O·M, K·N 은 같은 담임이 두 반의 같은 조를 함께 맡음)
+    groupT: { A: ["이승국", "이슬이"], XI: ["김혜경", "신의현", "허연옥"], OM: ["김대연", "김은지", "김동건"], KN: ["송병수", "박성준", "전형민"], D: ["박소영", "남관우"], S: ["정민호", "조태진"] },
+    lncT: { A: "유명환", B: "전병훈", C: "김홍훈", D: "엄준용", E: "한창희" },
+  };
+  const GROUP_SETS = [["A", ["A"]], ["XI", ["X", "I"]], ["OM", ["O", "M"]], ["KN", ["K", "N"]], ["D", ["D"]], ["S", ["S"]]];
+  const ROW_ORDER = ["A", "X", "I", "O", "M", "K", "N", "D", "S"];
+  const cfg = () => ({ ...DEFAULT_CFG, ...(st.config || {}), groupT: { ...DEFAULT_CFG.groupT, ...((st.config || {}).groupT || {}) } });
+
+  // ── 반별 인원표 (평소 보던 형태: 생활반 담임별 · L&C · 남/여 · 편성) ──
   function renderCap() {
+    const c = cfg();
+    const F = (key, val, w = 64) => (editing ? `<input class="input ca-in" data-k="${key}" value="${esc(val || "")}" style="width:${w}px">` : esc(val || ""));
     const { hr, grp } = E.tally(st.students, st.base);
-    const lad = E.ladders();
-    const baseHr = st.base.homerooms || {};
-    const rows = [["A", "K"], ...lad.K.map((c) => [c, "K"]), ...lad.S.map((c) => [c, "S"])];
-    let tCap = 0, tNow = 0;
-    const tr = rows.map(([c, ks]) => {
-      const cap = E.HOMEROOM_CAPS[c] || 84, now = hr[c] || 0, left = cap - now; tCap += cap; tNow += now;
-      const g = (grp[c] || Array(E.GROUP_COUNT[c] || 0).fill(0)).map((n, i) => {
-        const gc = E.GROUP_CAPS[c] || 30;
-        return `<span class="${n > gc ? "ca-warn" : ""}">${i + 1}조 ${n}/${gc}</span>`;
-      }).join(" · ");
-      return `<tr><td><b>${c}</b> <span class="ks">${ks}계열${c === "A" ? "·장학" : ""}</span></td><td>${cap}</td><td>${baseHr[c] || 0}</td><td>${now - (baseHr[c] || 0)}</td>
-        <td class="${now > cap ? "over" : now === cap ? "full" : ""}">${now}</td><td class="${left < 0 ? "over" : ""}">${left}</td><td class="left" style="font-size:12px">${g}</td></tr>`;
+    const gender = {};   // 반별 남/여 (재원생 base.gender + 현재 학생)
+    for (const [h, v] of Object.entries(st.base.gender || {})) gender[h] = { M: v.M || 0, F: v.F || 0 };
+    for (const s2 of st.students) if (s2.homeroom && (s2.gender === "M" || s2.gender === "F")) { (gender[s2.homeroom] ||= { M: 0, F: 0 })[s2.gender]++; }
+    // 생활반 칸 수는 배정 기준의 "생활반 수"를 따름 (담임 이름이 모자라면 빈칸)
+    const setN = Object.fromEntries(GROUP_SETS.map(([set, hrs]) => [set, Math.max(...hrs.map((h) => E.GROUP_COUNT[h] || 0))]));
+    const cols = GROUP_SETS.flatMap(([set, hrs]) => Array.from({ length: setN[set] }, (_, i) => ({ set, hrs, g: i + 1, t: (c.groupT[set] || [])[i] || "" })));
+    const lncKeys = ["A", "B", "C", "D", "E"];
+    const colTot = cols.map(() => 0), lncTot = { A: 0, B: 0, C: 0, D: 0, E: 0 };
+    let tM = 0, tF = 0, tAll = 0;
+    const body = ROW_ORDER.map((h) => {
+      const cap = E.HOMEROOM_CAPS[h] || 84, now = hr[h] || 0;
+      const gcap = E.GROUP_CAPS[h] || 30;
+      const gc = cols.map((col, i) => {
+        if (!col.hrs.includes(h)) return '<td class="off"></td>';
+        const n = ((grp[h] || [])[col.g - 1]) || 0; colTot[i] += n;
+        return `<td class="${n > gcap ? "over" : ""}">${n}</td>`;
+      }).join("");
+      const lk = E.HOMEROOM_LNC[h];
+      const lc = lncKeys.map((k) => (k === lk ? `<td>${now}</td>` : '<td class="off"></td>')).join("");
+      lncTot[lk] += now;
+      const g = gender[h] || { M: 0, F: 0 }; tM += g.M; tF += g.F; tAll += now;
+      return `<tr><td>${F(`code.${h}`, c.code[h], 44)}</td><td class="hr">${h}</td><td>${F(`mathT.${h}`, c.mathT[h])}</td>${gc}${lc}<td>${F(`room.${h}`, c.room[h], 60)}</td>
+        <td>${g.M}</td><td>${g.F}</td><td class="tot ${now > cap ? "over" : ""}" title="정원 ${cap}">${now}<span class="cap">/${cap}</span></td></tr>`;
     }).join("");
-    const wait = st.students.filter((s) => !s.homeroom).length;
+    const wait = st.students.filter((s2) => !s2.homeroom);
+    const wM = wait.filter((s2) => s2.gender === "M").length, wF = wait.filter((s2) => s2.gender === "F").length;
+    const head1 = GROUP_SETS.filter(([set]) => setN[set] > 0).map(([set]) => `<th colspan="${setN[set]}">${set === "XI" ? "X·I" : set === "OM" ? "O·M" : set === "KN" ? "K·N" : set}</th>`).join("");
+    const head2 = cols.map((col) => `<th class="t">${col.g}<br>${F(`groupT.${col.set}.${col.g - 1}`, col.t, 58)}</th>`).join("") + lncKeys.map((k) => `<th class="t">${k}<br>${F(`lncT.${k}`, c.lncT[k], 58)}</th>`).join("");
     $("[data-cap]").innerHTML = `
       <div class="table-wrap"><table class="table ca-cap">
-        <thead><tr><th>수학반</th><th>정원</th><th>재원</th><th>신규</th><th>현재</th><th>남은 자리</th><th class="left">생활반(조) 인원/정원</th></tr></thead>
-        <tbody>${tr}<tr><td><b>합계</b></td><td><b>${tCap}</b></td><td>${Object.values(baseHr).reduce((a, b) => a + b, 0)}</td><td>${tNow - Object.values(baseHr).reduce((a, b) => a + b, 0)}</td><td><b>${tNow}</b></td><td><b>${tCap - tNow}</b></td><td class="left">배정 대기 <b class="${wait ? "ca-warn" : ""}">${wait}명</b></td></tr></tbody>
-      </table></div>`;
+        <thead>
+          <tr><th rowspan="2">반코드</th><th rowspan="2">수학반</th><th rowspan="2">수학담임</th>${head1}<th colspan="5">L&amp;C</th><th rowspan="2">강의실</th><th rowspan="2">남</th><th rowspan="2">여</th><th rowspan="2">편성</th></tr>
+          <tr>${head2}</tr>
+        </thead>
+        <tbody>${body}
+          <tr class="wait"><td></td><td class="hr">미배정</td><td></td>${cols.map(() => "<td></td>").join("")}${lncKeys.map(() => "<td></td>").join("")}<td></td><td>${wM}</td><td>${wF}</td><td class="tot ${wait.length ? "over" : ""}">${wait.length}</td></tr>
+          <tr class="sum"><td></td><td></td><td>계</td>${colTot.map((n) => `<td>${n}</td>`).join("")}${lncKeys.map((k) => `<td>${lncTot[k]}</td>`).join("")}<td>계</td><td>${tM}</td><td>${tF}</td><td class="tot">${tAll}</td></tr>
+        </tbody>
+      </table></div>
+      <div class="toolbar" style="margin:var(--s3) 0 0">${editing
+        ? '<button class="btn btn-sm" type="button" data-act="cfg-save">설정 저장</button><button class="btn btn-line btn-sm" type="button" data-act="cfg-cancel">취소</button>'
+        : '<button class="btn btn-line btn-sm" type="button" data-act="cfg">반코드·담임·강의실 고치기</button>'}
+      <span class="ca-note">생활반 정원 ${E.GROUP_CAPS.X}명(D·S ${E.GROUP_CAPS.D}명), 넘으면 빨간색 · 편성 칸은 현재/정원 · 성별은 엑셀에 '성별' 열이 있을 때 셉니다</span></div>`;
   }
 
+  // 담임·강의실 고치기: 표 안의 이름 칸이 입력칸으로 바뀜
+  let editing = false;
+  function saveCfg() {
+    const next = JSON.parse(JSON.stringify(cfg()));
+    $("[data-cap]").querySelectorAll("input[data-k]").forEach((i) => {
+      const [k, a, b] = i.dataset.k.split(".");
+      if (b != null) { next[k][a] = next[k][a] || []; next[k][a][Number(b)] = i.value.trim(); } else next[k][a] = i.value.trim();
+    });
+    st.config = next; editing = false;
+    log({ name: "(설정)" }, "", "", "반 설정 수정"); touch(); renderCap();
+  }
   // ── 학생 명단 ──
   function inqText(s) {
     const t = s.inqTime || {};
     return [s.inq1 && `${s.inq1}${t.t1 ? `(${t.t1})` : ""}`, s.inq2 && `${s.inq2}${t.t2 ? `(${t.t2})` : ""}`].filter(Boolean).join(", ");
   }
+  // 과목별 수업반 (원본과 같은 계산: 계열 + 구간표 + K계열 동시배정 조정)
+  function subjOf(s) {
+    if (!s.homeroom) return null;
+    const c = E.classBrackets(s), ks = c.ks;
+    const mt = s.mathtype_new || s.mathtype, kt = s.kortype_new || s.kortype;
+    const eng = E.engClass(s.exam, s.eng, s.engKS);
+    return {
+      c, ks,
+      kor: [c.korS && `${c.korS === "㉡(K)" ? "K" : ks}국어S(${kt})${c.korS === "㉡(K)" ? "㉡" : c.korS}`, c.korA && `${ks}독서${c.korA}`, c.korB && `${ks}문학${c.korB}`].filter(Boolean),
+      math: [c.mathS && `${ks}${mt === "미적분" ? "미적" : mt === "기하" ? "기하" : "확통"}S${c.mathS}`, c.mathA && `${ks}수1${c.mathA}`, c.mathB && `${ks}수2${c.mathB}`].filter(Boolean),
+      eng: eng ? `${s.engKS}영어${eng}` : (s.eng ? `${s.engKS || ks}영어 배정없음` : ""),
+    };
+  }
+  function subjText(s) {
+    const o = subjOf(s);
+    if (!o) return '<span class="ca-note">수학반 배정 후 계산</span>';
+    return `<div>${esc(o.kor.join(" · "))}</div><div>${esc(o.math.join(" · "))}</div><div>${esc(o.eng)}</div>` +
+      (o.c.adjust.length ? `<div class="ca-note">조정: ${esc(o.c.adjust.join(" / "))}</div>` : "");
+  }
+
   function renderRows() {
     const clsSel = $('[data-f="cls"]');
     if (clsSel.options.length <= 1) ["A", ...E.ladders().K, ...E.ladders().S].forEach((c) => clsSel.append(new Option(`${c}반`, c)));
@@ -174,7 +272,7 @@ export async function mount(el, ctx) {
         <td>${cands.join("·") || "-"}</td>
         <td><select data-hr><option value="">대기</option>${order.map((c) => `<option ${s.homeroom === c ? "selected" : ""}>${c}</option>`).join("")}</select></td>
         <td><select data-grp ${s.homeroom ? "" : "disabled"}><option value="">-</option>${Array.from({ length: gN }, (_, i) => `<option value="${i + 1}" ${s.group === i + 1 ? "selected" : ""}>${i + 1}조</option>`).join("")}</select></td>
-        <td>${esc(s.engKS || "")}${s.eng ? ` <span class="ca-note">${esc(s.eng)}등급</span>` : ""}</td>
+        <td class="left" style="font-size:12px">${subjText(s)}</td>
         <td style="font-size:12px">${esc(inqText(s))}</td>
         <td class="left"><div class="ca-note">${esc(s.hrReason || "")}</div>${warns.map((w) => `<div class="ca-warn">${esc(w)}</div>`).join("")}<div data-sug></div></td>`;
       // 대기 학생: 추천
@@ -245,13 +343,15 @@ export async function mount(el, ctx) {
     const rows = parseCSV(await file.text());
     const h = rows[0] || [];
     const ix = (n) => h.indexOf(n);
+    const iSex = ix("성별");
     const iHr = ix("수학담임반"), iG = ix("생활반"), iT1 = ix("탐구1과목"), iT1g = ix("탐구1그룹"), iT2 = ix("탐구2과목"), iT2g = ix("탐구2그룹"), iEg = ix("영어그룹"), iNum = ix("학번");
     if (iHr < 0) throw new Error("'수학담임반' 열이 없습니다. 반배정 결과 CSV 인지 확인해 주세요.");
-    const homerooms = {}, groups = {}, soc = { A: 0, B: 0 }, eng = { K: 0, S: 0 };
+    const homerooms = {}, groups = {}, soc = { A: 0, B: 0 }, eng = { K: 0, S: 0 }, gender = {};
     let maxNum = 0;
     for (const r of rows.slice(1)) {
       const hr = r[iHr]; if (!hr) continue;
       homerooms[hr] = (homerooms[hr] || 0) + 1;
+      if (iSex >= 0) { const gg = /남/.test(r[iSex]) ? "M" : /여/.test(r[iSex]) ? "F" : ""; if (gg) (gender[hr] ||= { M: 0, F: 0 })[gg]++; }
       const g = parseInt(r[iG], 10);
       if (g && E.GROUP_COUNT[hr]) { const a = (groups[hr] ||= Array(E.GROUP_COUNT[hr]).fill(0)); if (g - 1 < a.length) a[g - 1]++; }
       // 사회문화는 '탐구1·2그룹'(탐구A/탐구B)으로 셈 — 원본은 조합(㉠/㉡)과 섞여서 반영이 안 됐음
@@ -260,7 +360,7 @@ export async function mount(el, ctx) {
       if (iEg >= 0 && /^([KS])영어/.test(r[iEg] || "")) eng[RegExp.$1]++;
       const n = parseInt(r[iNum], 10); if (!isNaN(n)) maxNum = Math.max(maxNum, n);
     }
-    return { base: { homerooms, groups, soc, eng }, maxNum, total: Object.values(homerooms).reduce((a, b) => a + b, 0) };
+    return { base: { homerooms, groups, soc, eng, gender }, maxNum, total: Object.values(homerooms).reduce((a, b) => a + b, 0) };
   }
   async function readNew(file) {
     await loadXLSX();
@@ -282,6 +382,7 @@ export async function mount(el, ctx) {
         kortype: normKor(cell(r, "kortype")), kortype_new: cell(r, "kortype_new") !== "" ? normKor(cell(r, "kortype_new")) : null,
         math: num(cell(r, "math")), korean: num(cell(r, "korean")), eng: cell(r, "eng") !== "" ? String(cell(r, "eng")) : null,
         inq1: String(cell(r, "inq1") || "").trim(), inq2: String(cell(r, "inq2") || "").trim(),
+        gender: /남/.test(String(cell(r, "gender"))) ? "M" : /여/.test(String(cell(r, "gender"))) ? "F" : "",
         nonsul: String(cell(r, "nonsul") || "").trim(), hankuksa: String(cell(r, "hankuksa") || "").trim(), jeonhyeong: String(cell(r, "jeonhyeong") || "").trim(),
         homeroom: "", group: null, engKS: null, inqTime: null, locked: false,
       });
@@ -340,6 +441,23 @@ export async function mount(el, ctx) {
       st.students = []; log({ name: "(전체)" }, "", "", "명단 비우기"); touch(); renderAll();
     }
     if (a === "add") addOne();
+    if (a === "rules") showView("rules");
+    if (a === "rules-close") showView("main");
+    if (a === "rules-default") { if (confirm("원본 기본값을 화면에 불러옵니다. 저장을 눌러야 적용됩니다.")) renderRules(E.defaultRules()); }
+    if (a === "rules-save") {
+      const r = readRules(); const bad = checkRules(r);
+      if (bad.length) return alert("숫자를 확인해 주세요: " + bad.join(", "));
+      // 줄을 추가했다가 비워둔 경우 등은 저장 전에 정리됨
+      st.rules = r; E.applyRules(r);
+      // 생활반 수가 줄어든 반에서 범위를 벗어난 조는 비움 (다시 배정 때 채워짐)
+      for (const s2 of st.students) if (s2.group && s2.group > (E.GROUP_COUNT[s2.homeroom] || 0)) s2.group = null;
+      $("[data-rules-note]").textContent = "이 시즌 전용 배정 기준 사용 중";
+      log({ name: "(기준)" }, "", "", "배정 기준 수정"); touch(); showView("main");
+      msg("배정 기준을 저장했습니다. 새 기준으로 다시 나누려면 \"고정 안 한 학생 다시 배정\"을 누르세요.");
+    }
+    if (a === "cfg") { editing = true; renderCap(); }
+    if (a === "cfg-save") saveCfg();
+    if (a === "cfg-cancel") { editing = false; renderCap(); }
   });
   el.querySelectorAll("[data-f]").forEach((x) => x.addEventListener(x.tagName === "INPUT" ? "input" : "change", () => { filter[x.dataset.f] = x.value.trim(); renderRows(); }));
 
@@ -391,14 +509,134 @@ export async function mount(el, ctx) {
     msg(`CSV 내보냄 (${rows.length - 1}명)${wait ? ` · 배정 대기 ${wait}명은 빠졌습니다` : ""}`);
   }
 
+  // ── 배정 기준 설정 (원본의 구간표·가산값 편집과 같은 내용, 시즌마다 따로) ──
+  function showView(v) {
+    view = v;
+    $("[data-view-main]").hidden = v !== "main";
+    $("[data-view-rules]").hidden = v !== "rules";
+    if (v === "main") { $("[data-view-rules]").innerHTML = ""; renderAll(); } else renderRules(E.currentRules());
+  }
+  const I = (key, val, w = 64) => `<input class="input ca-in" data-r="${key}" value="${esc(val ?? "")}" style="width:${w}px">`;
+  function renderRules(r) {
+    const box = $("[data-view-rules]");
+    const order = ["A", "X", "I", "O", "M", "K", "N", "D", "S"];
+    const hb = Object.fromEntries(r.homeroomBrackets.map((b) => [b.label, b]));
+    const exams = Object.keys(r.mathBonus);
+    const mtypes = [...new Set(exams.flatMap((e) => Object.keys(r.mathBonus[e])))];
+    const others = SEASONS.flatMap(([k, l]) => [thisYear - 1, thisYear, thisYear + 1].map((y) => [`${y}_${k}`, `${y} ${l}`])).filter(([k]) => k !== seasonKey);
+    box.innerHTML = `
+      <section class="card">
+        <div class="card-head"><h2>담임반 구간 · 정원</h2><span class="ca-note">수학 변환백분위 기준 · 겹치는 구간은 정원 대비 덜 찬 반으로 · A반은 장학(0T·4T) 전용</span></div>
+        <div class="card-body"><div class="table-wrap"><table class="table ca-cap">
+          <thead><tr><th>수학반</th><th>계열</th><th>구간 시작</th><th>구간 끝</th><th>반 정원</th><th>생활반 수</th><th>생활반 정원</th></tr></thead>
+          <tbody>${order.map((h) => `<tr><td class="hr">${h}</td><td>${E.HOMEROOM_KS[h]}</td>
+            <td>${I(`hb.${h}.from`, hb[h]?.from, 60)}</td><td>${I(`hb.${h}.to`, hb[h]?.to, 60)}</td>
+            <td>${I(`caps.${h}`, r.caps[h], 56)}</td><td>${I(`gc.${h}`, r.groupCount[h], 44)}</td><td>${I(`gcap.${h}`, r.groupCaps[h], 56)}</td></tr>`).join("")}</tbody>
+        </table></div></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>가산값</h2><span class="ca-note">백분위에 더하는 값 (시험·과목별)</span></div>
+        <div class="card-body"><div class="table-wrap"><table class="table ca-cap">
+          <thead><tr><th>시험</th>${mtypes.map((m) => `<th>수학 ${m}</th>`).join("")}<th>국어</th></tr></thead>
+          <tbody>${exams.map((e) => `<tr><td class="hr">${e}</td>${mtypes.map((m) => `<td>${I(`mb.${e}.${m}`, r.mathBonus[e][m], 56)}</td>`).join("")}<td>${I(`kb.${e}`, r.korBonus[e], 56)}</td></tr>`).join("")}</tbody>
+        </table></div></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h2>과목반 구간표</h2><span class="ca-note">변환백분위 → 수업반 (예: 미적분K = K계열 미적분 S반)</span></div>
+        <div class="card-body ca-brs">${Object.entries(r.brackets).map(([key, rows]) => `
+          <div class="ca-br" data-br="${esc(key)}"><b>${esc(key)}</b>
+            ${rows.map((x, i) => `<div class="ca-br-row">${I(`br.${key}.${i}.label`, x.label, 46)} ${I(`br.${key}.${i}.from`, x.from, 50)} ~ ${I(`br.${key}.${i}.to`, x.to, 50)}
+              <button class="btn btn-line btn-sm" type="button" data-br-del="${esc(key)}|${i}" title="이 줄 삭제">삭제</button></div>`).join("")}
+            <button class="btn btn-line btn-sm" type="button" data-br-add="${esc(key)}">줄 추가</button></div>`).join("")}
+        </div>
+      </section>
+
+      <section class="card"><div class="card-body">
+        <div class="toolbar">
+          <button class="btn" type="button" data-act="rules-save">이 시즌 기준으로 저장</button>
+          <button class="btn btn-line" type="button" data-act="rules-close">닫기</button>
+          <select class="select" data-rules-from style="margin-left:auto"><option value="">다른 시즌 기준 가져오기</option>${others.map(([k, l]) => `<option value="${k}">${l}</option>`).join("")}</select>
+          <button class="btn btn-line" type="button" data-act="rules-default">원본 기본값으로</button>
+        </div>
+        <p class="ca-note" style="margin-top:var(--s2)">저장해도 이미 배정된 학생은 그대로입니다. 새 기준으로 다시 나누려면 저장 후 "고정 안 한 학생 다시 배정"을 누르세요.</p>
+      </div></section>
+      <style>
+        .ca-brs{ display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:var(--s3); }
+        .ca-br{ border:1px solid var(--line); border-radius:var(--r-sm); padding:var(--s3); background:rgba(255,255,255,.5); display:flex; flex-direction:column; gap:6px; }
+        .ca-br-row{ display:flex; gap:6px; align-items:center; font-size:12px; }
+      </style>`;
+    box.querySelector("[data-rules-from]").onchange = async (ev) => {
+      const k = ev.target.value; if (!k) return;
+      const d = await getDoc(stateRef(db, k)).catch(() => null);
+      const rr = d && d.exists() ? d.data().rules : null;
+      if (!rr) { alert("그 시즌에는 저장된 전용 기준이 없습니다(원본 기본값 사용 중)."); ev.target.value = ""; return; }
+      renderRules(JSON.parse(JSON.stringify({ ...E.defaultRules(), ...rr })));
+      msg("다른 시즌 기준을 불러왔습니다. 확인 후 저장을 눌러야 적용됩니다.");
+    };
+  }
+  function readRules() {
+    const r = E.currentRules();
+    const hb = Object.fromEntries(r.homeroomBrackets.map((b) => [b.label, b]));
+    const brs = {};
+    $("[data-view-rules]").querySelectorAll("input[data-r]").forEach((i) => {
+      const parts = i.dataset.r.split("."), v = i.value.trim(), n = Number(v);
+      const val = v === "" || isNaN(n) ? v : n;
+      if (parts[0] === "hb") hb[parts[1]][parts[2]] = val;
+      else if (parts[0] === "caps") r.caps[parts[1]] = val;
+      else if (parts[0] === "gc") r.groupCount[parts[1]] = val;
+      else if (parts[0] === "gcap") r.groupCaps[parts[1]] = val;
+      else if (parts[0] === "mb") r.mathBonus[parts[1]][parts[2]] = val;
+      else if (parts[0] === "kb") r.korBonus[parts[1]] = val;
+      else if (parts[0] === "br") { const [, key, idx, f] = parts; ((brs[key] ||= [])[idx] ||= {})[f] = val; }
+    });
+    r.homeroomBrackets = Object.values(hb);
+    r.brackets = Object.fromEntries(Object.entries(brs).map(([k, rows]) => [k, rows.filter(Boolean).filter((x) => x.label !== "")]));
+    return r;
+  }
+  function checkRules(r) {
+    const bad = [];
+    for (const b of r.homeroomBrackets) if (!(typeof b.from === "number" && typeof b.to === "number" && b.from <= b.to)) bad.push(`${b.label}반 구간`);
+    for (const [k, v] of Object.entries(r.caps)) if (!(v > 0)) bad.push(`${k}반 정원`);
+    for (const [k, v] of Object.entries(r.groupCount)) if (!(Number.isInteger(v) && v >= 1 && v <= 6)) bad.push(`${k}반 생활반 수(1~6)`);
+    for (const [k, rows] of Object.entries(r.brackets)) for (const x of rows) if (!(typeof x.from === "number" && typeof x.to === "number")) bad.push(`${k} 구간 숫자`);
+    return [...new Set(bad)];
+  }
+  el.addEventListener("click", (ev) => {
+    const add = ev.target.closest("[data-br-add]"), del = ev.target.closest("[data-br-del]");
+    if (!add && !del) return;
+    const r = readRules();
+    if (add) (r.brackets[add.dataset.brAdd] ||= []).push({ label: "", from: "", to: "" });
+    if (del) { const [k, i] = del.dataset.brDel.split("|"); r.brackets[k].splice(Number(i), 1); }
+    renderRules(r);
+    if (add) { const box = $(`[data-br="${CSS.escape(add.dataset.brAdd)}"]`); box && box.querySelectorAll("input")[box.querySelectorAll("input").length - 3]?.focus(); }
+  });
+
+  // ── 시즌 불러오기 ──
+  async function loadSeason() {
+    st = { students: [], base: {}, startSid: "", config: null, rules: null }; loadedAt = null;
+    $("[data-save]").textContent = ""; $("[data-base-info]").textContent = ""; $("[data-new-info]").textContent = ""; msg("");
+    try {
+      const d = await getDoc(stateRef(db, seasonKey));
+      if (d.exists()) { const v = d.data(); st = { students: v.students || [], base: v.base || {}, startSid: v.startSid || "", config: v.config || null, rules: v.rules || null }; loadedAt = v.updatedAt?.toMillis?.() || null;
+        $("[data-save]").textContent = v.updatedAt ? `마지막 저장 ${v.updatedAt.toDate().toLocaleString("ko-KR")} · ${v.updatedBy || ""}` : "";
+        if (st.base.homerooms) $("[data-base-info]").textContent = `반영됨: 재원생 ${Object.values(st.base.homerooms).reduce((a, b) => a + b, 0)}명`;
+      }
+    } catch (e) { msg(`불러오지 못했습니다 (${e.code || e.message}). 보안 규칙과 계정의 반배정 권한을 확인하세요.`, true); }
+    E.applyRules(st.rules);
+    $("[data-rules-note]").textContent = st.rules ? "이 시즌 전용 배정 기준 사용 중" : "배정 기준: 원본 기본값";
+    showView("main");
+  }
+  async function changeSeason() {
+    clearTimeout(saveTimer); if (dirty) await save();
+    seasonKey = `${$("[data-season-year]").value}_${$("[data-season-kind]").value}`;
+    await loadSeason();
+  }
+  $("[data-season-year]").addEventListener("change", changeSeason);
+  $("[data-season-kind]").addEventListener("change", changeSeason);
+
   // ── 시작 ──
-  try {
-    const d = await getDoc(doc(db, ...STATE));
-    if (d.exists()) { const v = d.data(); st = { students: v.students || [], base: v.base || {}, startSid: v.startSid || "" }; loadedAt = v.updatedAt?.toMillis?.() || null;
-      $("[data-save]").textContent = v.updatedAt ? `마지막 저장 ${v.updatedAt.toDate().toLocaleString("ko-KR")} · ${v.updatedBy || ""}` : "";
-      if (st.base.homerooms) $("[data-base-info]").textContent = `반영됨: 재원생 ${Object.values(st.base.homerooms).reduce((a, b) => a + b, 0)}명`;
-    }
-  } catch (e) { msg(`불러오지 못했습니다 (${e.code || e.message}). 보안 규칙과 계정의 반배정 권한을 확인하세요.`, true); }
-  renderAll();
+  await loadSeason();
   ctx.track(() => { clearTimeout(saveTimer); if (dirty) save(); });   // 메뉴를 떠날 때 저장 안 된 변경 저장
 }
