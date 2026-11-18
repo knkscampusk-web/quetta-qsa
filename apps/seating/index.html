@@ -301,7 +301,7 @@ input,select,textarea{font-family:inherit;cursor:auto}
 <style id="qsa-skin">
 :root{ --ink:#231F20; --ink-lt:#3a3436; --blue:#00B2BE; --blue-lt:#ECFAFB; --teal:#00B2BE;
   --sl50:#F7F9F9; --sl100:#F1F3F3; --sl200:rgba(35,31,32,.10); --sl400:#7A7476; --sl500:#5F5A5B; --sl700:#4A4546;
-  --q-glass:rgba(255,255,255,.66); --q-line:rgba(255,255,255,.7); --q-shadow:0 1px 2px rgba(35,31,32,.05),0 10px 28px rgba(35,31,32,.07); }
+  --q-glass:rgba(255,255,255,.62); --q-line:rgba(255,255,255,.7); --q-shadow:0 1px 2px rgba(35,31,32,.05),0 10px 28px rgba(35,31,32,.07); }
 @media screen {
   html,body{ background:transparent !important; }
   body{ font-family:"Pretendard",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif !important; zoom:1.15; }
@@ -322,7 +322,7 @@ input,select,textarea{font-family:inherit;cursor:auto}
 
   /* 도구 줄 → QSA 카드형 도구 줄 */
   #bar{ top:56px !important; margin:0 0 12px; padding:10px 14px !important; gap:8px !important; border-radius:16px; border:1px solid var(--q-line) !important;
-    background:rgba(255,255,255,.86) !important; -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px); box-shadow:var(--q-shadow); }
+    background:var(--q-glass) !important; -webkit-backdrop-filter:blur(14px) saturate(140%); backdrop-filter:blur(14px) saturate(140%); box-shadow:var(--q-shadow); }
   .view-grp{ background:rgba(35,31,32,.05) !important; border-radius:12px !important; padding:3px !important; }
   .vbtn{ color:#5F5A5B !important; font-size:13px !important; padding:6px 12px !important; border-radius:9px !important; }
   .vbtn.on{ background:#fff !important; color:#115E66 !important; box-shadow:0 1px 3px rgba(35,31,32,.1) !important; }
@@ -342,13 +342,15 @@ input,select,textarea{font-family:inherit;cursor:auto}
   .btn-danger{ background:#FBECEC !important; color:#B43F3F !important; border:1px solid #F3CACA !important; }
 
   /* 카드 → QSA 유리 카드 + Teal 막대 제목 */
-  .card{ background:rgba(255,255,255,.9) !important; border:1px solid var(--q-line) !important; border-radius:16px !important; box-shadow:var(--q-shadow) !important; }
+  .card{ background:var(--q-glass) !important; -webkit-backdrop-filter:blur(14px) saturate(140%); backdrop-filter:blur(14px) saturate(140%);
+    border:1px solid var(--q-line) !important; border-radius:16px !important; box-shadow:var(--q-shadow) !important; }
+  .card-hd{ background:transparent !important; }
   .card+.card{ margin-top:12px !important; }
   .card-hd{ padding:12px 20px !important; border-bottom:1px solid rgba(35,31,32,.08) !important; }
   .card-title{ font-size:16px !important; font-weight:800 !important; color:#231F20; }
   .card-title::before{ content:""; width:4px; height:16px; border-radius:2px; background:#00B2BE; flex:none; }
   .card-sub{ font-size:12px !important; color:#7A7476 !important; }
-  .stats-filter-bar, .info-bar{ background:rgba(236,250,251,.55) !important; font-size:13px !important; }
+  .stats-filter-bar, .info-bar{ background:rgba(255,255,255,.35) !important; font-size:13px !important; }
   .stats-sel, .exam-row select{ font-size:13px !important; border-radius:10px !important; padding:6px 10px !important; border:1px solid rgba(35,31,32,.14) !important; }
 
   /* 표 → QSA 표 */
@@ -362,7 +364,7 @@ input,select,textarea{font-family:inherit;cursor:auto}
     letter-spacing:.4em !important; padding:9px 12px !important; margin:8px 20px !important; }
   .grid-wrap{ padding:8px 20px 20px !important; }
   .sgrid{ gap:6px !important; }
-  .sc{ border-radius:12px !important; background:rgba(255,255,255,.92) !important; border:1px solid rgba(35,31,32,.10) !important; }
+  .sc{ border-radius:12px !important; background:rgba(255,255,255,.72) !important; border:1px solid rgba(35,31,32,.10) !important; }
   .sc.male{ background:#EFF1FA !important; border-color:#C9CFEA !important; }
   .sc.female{ background:#FCF0F4 !important; border-color:#F1CBD7 !important; }
   .sc.blocked{ background:rgba(35,31,32,.04) !important; border:1px dashed rgba(35,31,32,.16) !important; }
@@ -374,11 +376,11 @@ input,select,textarea{font-family:inherit;cursor:auto}
   .cls-chip{ background:#ECFAFB !important; color:#115E66 !important; }
   .ib-label{ color:#7A7476 !important; }
   .notice-bar{ background:#EFF1FA !important; border-bottom:1px solid rgba(35,31,32,.08) !important; color:#434E89 !important; }
-  .notice-input{ border:1px solid rgba(35,31,32,.14) !important; border-radius:12px !important; font-size:13px !important; background:rgba(255,255,255,.85) !important; }
+  .notice-input{ border:1px solid rgba(35,31,32,.12) !important; border-radius:12px !important; font-size:13px !important; background:rgba(255,255,255,.72) !important; }
   .notice-input:focus{ border-color:#00B2BE !important; box-shadow:0 0 0 3px rgba(0,178,190,.13) !important; }
   .edit-hint{ background:#EFF1FA !important; color:#434E89 !important; border-bottom:1px solid rgba(35,31,32,.08) !important; }
   .el-active{ background:#ECFAFB !important; border-color:#9FDDE2 !important; color:#115E66 !important; }
-  .ua-panel{ border:1px solid rgba(35,31,32,.10) !important; border-radius:16px !important; background:rgba(255,255,255,.9) !important; }
+  .ua-panel{ border:1px solid var(--q-line) !important; border-radius:16px !important; background:var(--q-glass) !important; box-shadow:var(--q-shadow); }
   .ua-hd{ background:#EFF1FA !important; color:#434E89 !important; border-bottom:1px solid rgba(35,31,32,.08) !important; }
   .ua-chip{ background:#fff !important; border:1px solid rgba(35,31,32,.12) !important; color:#231F20 !important; border-radius:999px !important; }
   .ua-chip:hover{ background:#ECFAFB !important; border-color:#00B2BE !important; }
