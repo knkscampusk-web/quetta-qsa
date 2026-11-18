@@ -69,7 +69,7 @@ export const menu = [
   { group: "인원관리" },
   { id: "enroll",        label: "등록현황",        icon: "clipboard-list", ready: true, loader: () => import("../modules/enroll.js") },
   { id: "enroll-import", label: "등록현황 데이터 가져오기", icon: "download-cloud", ready: true, hidden: true, perm: "enroll", loader: () => import("../modules/enroll-import.js") },
-  { id: "class-assign", label: "반배정",    icon: "shuffle",         ready: false },
+  { id: "class-assign", label: "반배정",    icon: "shuffle",         ready: true, loader: () => import("../modules/class-assign.js") },
   { id: "transfer",    label: "전입신고",  icon: "home",               ready: false },
   { group: "수업운영" },
   { id: "seating",     label: "좌석 배정", icon: "armchair",           ready: true, loader: () => import("../modules/seat.js") },
