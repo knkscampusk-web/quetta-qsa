@@ -13,22 +13,48 @@
 //  · 사람이 정한 학생(locked)과 이미 반이 있는 학생은 자동 배정이 건드리지 않음
 //  · 개강 후 수시 배정: suggest() — 계열은 맞추고 자리 있는 반·생활반 추천
 // ─────────────────────────────────────────────────────────────
-import {
-  MATH_BONUS, KOR_BONUS, BRACKETS, HOMEROOM_BRACKETS,
-  INQUIRY_MAP, SUBJECT_GROUP, ENG_CLASS,
-} from "./tables.js";
+import * as T from "./tables.js";
+const { INQUIRY_MAP, SUBJECT_GROUP, ENG_CLASS } = T;
+
+// ── 시즌별로 바뀌는 기준 (설정 화면에서 고침). 기본값은 원본 그대로 ──
+const clone = (o) => JSON.parse(JSON.stringify(o));
+let HOMEROOM_BRACKETS = clone(T.HOMEROOM_BRACKETS);
+let BRACKETS = clone(T.BRACKETS);
+let MATH_BONUS = clone(T.MATH_BONUS);
+let KOR_BONUS = clone(T.KOR_BONUS);
 
 // ── 반 구성 (원본 값) ──
 export const HOMEROOM_KS    = { X: "K", A: "K", K: "S", M: "K", O: "K", I: "K", N: "S", D: "S", S: "S" };
 export const HOMEROOM_LNC   = { A: "A", X: "B", I: "B", O: "C", M: "C", K: "D", N: "D", D: "E", S: "E" };
-export const GROUP_COUNT    = { A: 2, X: 3, I: 3, O: 3, M: 3, K: 3, N: 3, D: 2, S: 2 };   // 반별 생활반(조) 수 — 한 곳에서만 정의
-export const HOMEROOM_CAPS  = { A: 60, X: 84, I: 84, O: 84, M: 84, K: 84, N: 84, D: 84, S: 84 };
-export const GROUP_CAPS     = { A: 30, X: 30, I: 30, O: 30, M: 30, K: 30, N: 30, D: 45, S: 45 };
+export let GROUP_COUNT    = { A: 2, X: 3, I: 3, O: 3, M: 3, K: 3, N: 3, D: 2, S: 2 };   // 반별 생활반(조) 수 — 한 곳에서만 정의
+export let HOMEROOM_CAPS  = { A: 60, X: 84, I: 84, O: 84, M: 84, K: 84, N: 84, D: 84, S: 84 };
+export let GROUP_CAPS     = { A: 30, X: 30, I: 30, O: 30, M: 30, K: 30, N: 30, D: 45, S: 45 };
+const DEFAULT_RULES = clone({ homeroomBrackets: HOMEROOM_BRACKETS, brackets: BRACKETS, mathBonus: MATH_BONUS, korBonus: KOR_BONUS,
+  caps: HOMEROOM_CAPS, groupCount: GROUP_COUNT, groupCaps: GROUP_CAPS });
+
+// 원본 기본 기준 (복사본)
+export function defaultRules() { return clone(DEFAULT_RULES); }
+// 현재 기준 (복사본)
+export function currentRules() {
+  return clone({ homeroomBrackets: HOMEROOM_BRACKETS, brackets: BRACKETS, mathBonus: MATH_BONUS, korBonus: KOR_BONUS, caps: HOMEROOM_CAPS, groupCount: GROUP_COUNT, groupCaps: GROUP_CAPS });
+}
+// 시즌 기준 적용 (빠진 항목은 원본 기본값)
+export function applyRules(r) {
+  const d = defaultRules(), x = r || {};
+  HOMEROOM_BRACKETS = clone(x.homeroomBrackets || d.homeroomBrackets);
+  BRACKETS = clone(x.brackets || d.brackets);
+  MATH_BONUS = clone(x.mathBonus || d.mathBonus);
+  KOR_BONUS = clone(x.korBonus ?? d.korBonus);
+  HOMEROOM_CAPS = { ...d.caps, ...(x.caps || {}) };
+  GROUP_COUNT = { ...d.groupCount, ...(x.groupCount || {}) };
+  GROUP_CAPS = { ...d.groupCaps, ...(x.groupCaps || {}) };
+}
 export const DISPLAY_ORDER  = ["A", "X", "I", "O", "M", "K", "N", "D", "S"];   // 화면 표시용 (배정 순서 아님)
 export const SCHOLAR_A_ONLY = "A";                                              // 장학 0T·4T 전용 반
 
 // 계열별 "성적순 사다리" (위 → 아래). 구간 상한 기준으로 자동 정렬 → 구간표를 바꿔도 따라감
-export function ladders(brackets = HOMEROOM_BRACKETS) {
+export function ladders(brackets) {
+  brackets = brackets || HOMEROOM_BRACKETS;
   const by = { K: [], S: [] };
   for (const b of brackets) {
     if (b.label === SCHOLAR_A_ONLY) continue;              // A 는 장학 전용이라 사다리에서 제외
@@ -61,7 +87,8 @@ export function cvKorOf(s) {
 
 // ── 2단계: 담임반 후보 ──
 // 구간에 들어가는 반들(겹치면 여러 개). 어느 구간에도 없으면 "바로 아래 반"(상한이 점수보다 낮은 반 중 가장 높은 반)
-export function homeroomCandidates(cv, { scholarAllowed = false, brackets = HOMEROOM_BRACKETS } = {}) {
+export function homeroomCandidates(cv, { scholarAllowed = false, brackets } = {}) {
+  brackets = brackets || HOMEROOM_BRACKETS;
   if (cv == null) return { cands: [], gap: false };
   const usable = brackets.filter((b) => scholarAllowed || b.label !== SCHOLAR_A_ONLY);
   const hit = usable.filter((b) => cv >= b.from && cv <= b.to).map((b) => b.label);
@@ -159,8 +186,10 @@ export function assignHomerooms(students, base = {}, opts = {}) {
 // 생활반은 아직 조가 없는 학생에게만 배정. 조 인원 = 재원생(base) + 이미 조가 있는 학생 → 매번 새로 계산
 export function assignGroups(students, baseGroups = {}) {
   const cnt = {};
-  for (const [hr, arr] of Object.entries(baseGroups)) cnt[hr] = [...arr];
-  const ensure = (hr) => (cnt[hr] ||= Array(GROUP_COUNT[hr] || 0).fill(0));
+  // 기준의 생활반 수에 맞춰 칸을 맞춤 (재원생 CSV 의 조 수와 달라도 됨)
+  const fit = (hr, arr) => { const n = GROUP_COUNT[hr] || 0; const a = (arr || []).slice(0, n); while (a.length < n) a.push(0); return a; };
+  for (const [hr, arr] of Object.entries(baseGroups)) cnt[hr] = fit(hr, arr);
+  const ensure = (hr) => (cnt[hr] ||= fit(hr, []));
   for (const s of students) {
     if (s.homeroom && s.group) { const a = ensure(s.homeroom); const g = s.group - 1; if (g >= 0 && g < a.length) a[g]++; }
   }
@@ -278,7 +307,7 @@ export function runAll(students, base = {}, opts = {}) {
 export function tally(students, base = {}) {
   const hr = { ...(base.homerooms || {}) };
   const grp = {};
-  for (const [k, v] of Object.entries(base.groups || {})) grp[k] = [...v];
+  for (const [k, v] of Object.entries(base.groups || {})) { const n = GROUP_COUNT[k] || 0; const a = v.slice(0, n); while (a.length < n) a.push(0); grp[k] = a; }
   for (const s of students) {
     if (!s.homeroom) continue;
     hr[s.homeroom] = (hr[s.homeroom] || 0) + 1;
